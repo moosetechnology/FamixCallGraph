@@ -67,10 +67,11 @@ MiCallGraphModel >> famixEntityFrom: process [
 		                       copyFrom: 1
 		                       to: openPIndex - 1) withoutSuffix: ' ') , '('.
 
-	candidates := mooseModel allModelMethods select: [ :m | 
+	candidates := mooseModel allModelMethods select: [ :m |
 		              | mooseName |
-		              mooseName := String streamContents: [ :s | 
-			                           m mooseNameOn: s ].
+		              mooseName := m mooseName
+			                           replaceAllRegex: '\:\:'
+			                           with: '.'.
 		              mooseName beginsWith: processIdentifier ].
 
 	openPIndex + 1 = closePIndex ifTrue: [ ^ candidates first ].
@@ -79,22 +80,25 @@ MiCallGraphModel >> famixEntityFrom: process [
 		                   copyFrom: openPIndex + 1
 		                   to: closePIndex - 1.
 
-	parameters := (parameterString splitOn: $,) collect: [ :p | 
+	parameters := (parameterString splitOn: $,) collect: [ :p |
 		              p withoutPrefix: ' ' ].
-	parameters := parameters collect: [ :p | 
+	parameters := parameters collect: [ :p |
 		              (p splitOn: $.) last removeSuffix: '[]' ].
 
 	newCandidates := OrderedCollection new.
-	candidates := candidates select: [ :c | 
+	candidates := candidates select: [ :c |
 		              c parameters size = parameters size ].
-	candidates do: [ :method | 
+	candidates do: [ :method |
 		| parameterTypes |
-		parameterTypes := (method parameters asOrderedCollection sort: [ 
-			                   :m1 
-			                   :m2 | m1 sourceAnchor < m2 sourceAnchor ]) 
-			                  collect: [ :p | p declaredType name ].
+		parameterTypes := (method parameters asOrderedCollection sort: [
+			                   :m1
+			                   :m2 |
+			                   m1 sourceAnchor startPos
+			                   < m2 sourceAnchor startPos ]) collect: [ :p |
+			                  p declaredType name ].
 		parameterTypes = parameters ifTrue: [ newCandidates add: method ] ].
-	self assert: newCandidates size = 1.
+	1 haltIf: [ newCandidates size = 1 ].
+	newCandidates ifEmpty: [  ].
 	^ newCandidates first
 ]
 

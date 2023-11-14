@@ -98,7 +98,8 @@ MiServiceCallGraphVisualization >> model [
 { #category : #running }
 MiServiceCallGraphVisualization >> run [
 
-	| adjList layers layerShapes shapes entry subs |
+	| adjList layers layerShapes shapes |
+	self canvas.
 	adjList := self model computeCallGraph.
 
 
@@ -201,6 +202,7 @@ MiServiceCallGraphVisualization >> run [
 		s @ highlightable2 ].
 
 	self canvas addAll: shapes.
+	self canvas useRTree.
 	RSLineBuilder line
 		withBorderAttachPoint;
 		moveBehind;
