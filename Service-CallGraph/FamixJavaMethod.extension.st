@@ -23,3 +23,9 @@ FamixJavaMethod >> callGraph: dict depth: depth [
 			m callGraph: dict depth: newDepth ] ].
 	^ dict
 ]
+
+{ #category : #'*Service-CallGraph' }
+FamixJavaMethod >> isRecursive [
+
+	^ (self outgoingInvocations flatCollect: #allTargets) includes: self
+]

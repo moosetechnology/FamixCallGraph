@@ -13,25 +13,63 @@ Class {
 MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 
 	| entry subs |
-	entry := self model famixEntityFrom: process.
-	(process subProcesses reject: [ :p | p rawMthSignature = 'Self time' ]) 
+	(process subProcesses reject: [ :p | p rawMthSignature = 'Self time' ])
 		do: [ :p | self addDynamicLinksFrom: p ].
+	entry := self model famixEntityFrom: process.
+	entry ifNil: [ ^ self ].
 	subs := process subProcesses
 		        collect: [ :sp | self model famixEntityFrom: sp ]
 		        thenReject: #isNil.
-	subs do: [ :s | 
+	subs do: [ :s |
 		| line |
-		line := (methodShapeDict at: s) incomingLines detect: [ :l | 
-			        l from model = entry ].
-		line
-			propertyAt: #weight
-			ifPresent: [ 
-			line propertyAt: #weight put: (line propertyAt: #weight) + 1 ]
-			ifAbsent: [ 
-				line propertyAt: #weight put: 1.
-				line
-					color: (Color fromHexString: '27AE60');
-					width: 2 ] ]
+		line := (methodShapeDict at: s) incomingLines
+			        detect: [ :l | l from model = entry ]
+			        ifNone: [ nil ].
+
+		line ifNotNil: [
+			line
+				propertyAt: #processes
+				ifPresent: [ (line propertyAt: #processes) add: process ]
+				ifAbsent: [
+					line
+						propertyAt: #processes
+						put: (OrderedCollection with: process).
+					line
+						when: RSMouseClick
+						do: [ :evt | (evt shape propertyAt: #processes) inspect ]
+						for: self.
+					line
+						color: (Color fromHexString: '27AE60');
+						width: 2 ] ] ]
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> addInteractionsOn: aShape [
+
+	aShape
+		@ self hightlightOutgoingLines;
+		@ self highlighIncomingLines;
+		@ self highlightSubGraph;
+		@ self unhighlightOtherNodes
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> buildLines [
+
+	| adjList |
+	adjList := self model computeCallGraph.
+	RSLineBuilder line
+		withBorderAttachPoint;
+		moveBehind;
+		attachPoint: (RSBorderAttachPoint new endOffset: 5);
+		markerEnd: (RSShapeFactory arrow
+				 size: 10;
+				 color: Color black;
+				 yourself);
+		color: Color gray translucent;
+		canvas: self canvas;
+		shapes: methodShapes;
+		connectToAll: [ :model | adjList at: model ].
 ]
 
 { #category : #running }
@@ -48,6 +86,47 @@ MiServiceCallGraphVisualization >> emptyClassGroup [
 	^ RSComposite new
 		  extent: 48 @ 10;
 		  yourself
+]
+
+{ #category : #interactions }
+MiServiceCallGraphVisualization >> highlighIncomingLines [
+
+	^ RSHighlightable new
+		  withIncomingLines;
+		  highlightBorder: (RSBorder new
+				   width: 3;
+				   color: (Color fromHexString: 'C0392B'))
+]
+
+{ #category : #interactions }
+MiServiceCallGraphVisualization >> highlightSubGraph [
+
+	| highlightable |
+	highlightable := RSHighlightable new highlightShapes: [ :shape |
+		                 | list |
+		                 list := shape canvas lines reject: [ :l |
+			                         shape connectedLines includes: l ].
+		                 list ].
+	highlightable
+		when: RSHighlightEvent do: [ :evt |
+			| c |
+			c := Color fromHexString: 'EEEEEE'.
+			highlightable record: evt shape selector: #color value: c ]
+		for: self;
+		when: RSUnHighlightEvent
+		do: [ :evt | highlightable restore: evt shape selector: #color ]
+		for: self.
+	^ highlightable
+]
+
+{ #category : #interactions }
+MiServiceCallGraphVisualization >> hightlightOutgoingLines [
+
+	^ RSHighlightable new
+		  withOutgoingLines;
+		  highlightBorder: (RSBorder new
+				   width: 3;
+				   color: (Color fromHexString: '2980B9'))
 ]
 
 { #category : #initialization }
@@ -90,39 +169,30 @@ MiServiceCallGraphVisualization >> layerOf: anEntity [
 ]
 
 { #category : #running }
-MiServiceCallGraphVisualization >> model [ 
+MiServiceCallGraphVisualization >> layerShapes [
 
-	^ self owner model
-]
-
-{ #category : #running }
-MiServiceCallGraphVisualization >> run [
-
-	| adjList layers layerShapes shapes |
-	self canvas.
-	adjList := self model computeCallGraph.
-
-
+	| layerShapes labels layers |
 	layers := self model layeredLeveledCallGraph.
-
-	layerShapes := layers collect: [ :assoc | 
-		               | classes classeGroups shape |
-		               classes := assoc value collect: [ :group | 
+	labels := RSGroup new.
+	layerShapes := layers collect: [ :assoc |
+		               | classes classeGroups shape label labelAndShape labeledShape |
+		               classes := assoc value collect: [ :group |
 			                          group groupedBy: [ :m | m parentType ] ].
+
 		               classeGroups := classes
-			                               collect: [ :g | 
+			                               collect: [ :g |
 				                               g
-					                               ifEmpty: [ 
+					                               ifEmpty: [
 						                               RSGroup new
 							                               add: self emptyClassGroup;
 							                               yourself ]
-					                               ifNotEmpty: [ 
+					                               ifNotEmpty: [
 					                               g
-						                               collect: [ :g2 | 
+						                               collect: [ :g2 |
 						                               self shapeFromClassGroup: g2 ]
 						                               as: RSGroup ] ]
 			                               as: RSGroup.
-		               classeGroups do: [ :g | 
+		               classeGroups do: [ :g |
 			               RSVerticalLineLayout new
 				               verticalGap: 50;
 				               alignCenter;
@@ -135,15 +205,50 @@ MiServiceCallGraphVisualization >> run [
 			                               collect: #asShape
 			                               as: RSGroup.
 		               shape := classeGroups asShape.
-		               shape padding: 80 ].
+		               shape padding: 80.
+		               label := (RSLabel text:
+				                         assoc key asString asUppercase)
+			                        fontSize: 50;
+			                        yourself.
+		               labelAndShape := RSGroup withAll: {
+				                                label.
+				                                shape }.
+		               RSVerticalLineLayout on: labelAndShape.
+		               labeledShape := labelAndShape asShape.
+		               label translateBy: -300 @ 0.
+		               labeledShape ].
+	^ layerShapes
+]
 
+{ #category : #running }
+MiServiceCallGraphVisualization >> model [ 
 
+	^ self owner model
+]
 
+{ #category : #running }
+MiServiceCallGraphVisualization >> run [
 
+	self runAsRoassalJob
+]
 
+{ #category : #running }
+MiServiceCallGraphVisualization >> runAsRoassalJob [
 
+	[ :job |
+	| layerShapes shapes |
 	shapes := RSGroup new.
-	layerShapes do: [ :layer | shapes add: layer ] separatedBy: [ 
+	job title: 'Building  call graph'.
+	job currentValue: 0.
+
+	layerShapes := self layerShapes.
+
+
+	job title: 'Building  shapes'.
+	job currentValue: 20.
+
+
+	layerShapes do: [ :layer | shapes add: layer ] separatedBy: [
 		shapes add: (RSBox new
 				 extent: layerShapes anyOne extent x * 1.5 @ 1;
 				 color: Color transparent;
@@ -153,130 +258,28 @@ MiServiceCallGraphVisualization >> run [
 	RSVerticalLineLayout new
 		alignCenter;
 		on: shapes.
-	methodShapes do: [ :s | 
-		| highlightable highlightable2 |
-		s @ (RSHighlightable new
-			 withIncomingLines;
-			 highlightBorder: (RSBorder new
-					  width: 3;
-					  color: (Color fromHexString: 'C0392B'))).
 
-		s @ (RSHighlightable new
-			 withOutgoingLines;
-			 highlightBorder: (RSBorder new
-					  width: 3;
-					  color: (Color fromHexString: '2980B9'))).
-		highlightable := RSHighlightable new highlightShapes: [ :shape | 
-			                 | list |
-			                 list := shape canvas lines reject: [ :l | 
-				                         shape connectedLines includes: l ].
-			                 list ].
-		highlightable
-			when: RSHighlightEvent do: [ :evt | 
-				| c |
-				c := Color fromHexString: 'EEEEEE'.
-				highlightable record: evt shape selector: #color value: c ]
-			for: self;
-			when: RSUnHighlightEvent
-			do: [ :evt | highlightable restore: evt shape selector: #color ]
-			for: self.
-		s @ highlightable.
-		highlightable2 := RSHighlightable new highlightShapes: [ :shape | 
-			                  | list |
-			                  list := methodShapes reject: [ :l | 
-				                          (shape outgoingShapes includes: l) or: [ 
-					                          (shape incomingShapes includes: l) or: [ 
-						                          l = shape ] ] ].
-			                  list ].
-		highlightable2
-			when: RSHighlightEvent do: [ :evt | 
-				| c |
-				c := evt shape color alpha: 0.2.
-				highlightable2 record: evt shape selector: #color value: c.
-				highlightable2 record: evt shape selector: #border value: nil ]
-			for: self;
-			when: RSUnHighlightEvent do: [ :evt | 
-				highlightable2 restore: evt shape selector: #color.
-				highlightable2 restore: evt shape selector: #border ]
-			for: self.
-		s @ highlightable2 ].
+	job title: 'Rendering shapes'.
+	job currentValue: 50.
 
 	self canvas addAll: shapes.
 	self canvas useRTree.
-	RSLineBuilder line
-		withBorderAttachPoint;
-		moveBehind;
-		attachPoint: (RSBorderAttachPoint new endOffset: 5);
-		markerEnd: (RSShapeFactory arrow
-				 size: 10;
-				 color: Color black;
-				 yourself);
-		color: Color gray translucent;
-		canvas: self canvas;
-		shapes: methodShapes;
-		connectToAll: [ :model | adjList at: model ].
 
-	
+	job title: 'Rendering lines'.
+	job currentValue: 60.
 
-	self addDynamicLinksFrom: self model entryPoint
-]
+	self buildLines.
 
-{ #category : #running }
-MiServiceCallGraphVisualization >> run2 [
+	job title: 'Adding dyanmic call graph'.
+	job currentValue: 80.
 
-	| lvlcg groups adjList classes classeGroups |
-	lvlcg := self model leveledCallGraph.
-	
-	adjList := self model computeCallGraph.
-	
-	
-	self model layeredLeveledCallGraph.
-	classes := lvlcg collect: [ :group | 
-		           group groupedBy: [ :m | m parentType ] ].
+	self addDynamicLinksFrom: self model entryPoint.
 
-	classeGroups := classes collect: [ :g | 
-		                g
-			                collect: [ :g2 | self shapeFromClassGroup: g2 ]
-			                as: RSGroup ].
+	job title: ''.
+	job currentValue: 100.
 
-
-	classeGroups do: [ :g | 
-		RSVerticalLineLayout new
-			verticalGap: 50;
-			alignCenter;
-			on: g ].
-
-
-	RSHorizontalLineLayout new
-		alignMiddle;
-		horizontalGap: 400;
-		on: classeGroups.
-
-
-
-
-	methodShapes do: [ :s | 
-		s @ (RSHighlightable new
-			 withLines;
-			 highlightBorder: (RSBorder new color: Color red)).
-		s @ (RSHighlightable new
-			 withConnectedShapes;
-			 highlightBorder: (RSBorder new color: Color green)).
-		s @ (RSHighlightable new
-			 highlightShapes: [ :shape | 
-				 | list |
-				 list := shape canvas lines.
-				 list ]) ].
-
-	self canvas addAll: classeGroups flatten.
-
-	RSLineBuilder arrowedLine
-		withBorderAttachPoint;
-		color: Color black translucent;
-		moveBehind;
-		canvas: self canvas;
-		shapes: methodShapes;
-		connectToAll: [ :model | adjList at: model ]
+	(Delay forDuration: (Duration milliSeconds: 200)) wait ]
+		runAsRoassalJobOn: self canvas
 ]
 
 { #category : #running }
@@ -297,8 +300,12 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 				          color: Color gray;
 				          yourself);
 		         yourself.
-
+	self addInteractionsOn: shape.
 	anEntity outgoingInvocations isEmpty ifTrue: [ shape size: 10 ].
+	anEntity isRecursive ifTrue: [
+		shape border
+			width: 10;
+			color: Color purple ].
 	methodShapeDict at: anEntity put: shape.
 	methodShapes add: shape.
 
@@ -323,4 +330,29 @@ MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 				 yourself).
 
 	^ shape
+]
+
+{ #category : #interactions }
+MiServiceCallGraphVisualization >> unhighlightOtherNodes [
+
+	| highlightable |
+	highlightable := RSHighlightable new highlightShapes: [ :shape |
+		                 | list |
+		                 list := methodShapes reject: [ :l |
+			                         (shape outgoingShapes includes: l) or: [
+				                         (shape incomingShapes includes: l) or: [
+					                         l = shape ] ] ].
+		                 list ].
+	highlightable
+		when: RSHighlightEvent do: [ :evt |
+			| c |
+			c := evt shape color alpha: 0.2.
+			highlightable record: evt shape selector: #color value: c.
+			highlightable record: evt shape selector: #border value: nil ]
+		for: self;
+		when: RSUnHighlightEvent do: [ :evt |
+			highlightable restore: evt shape selector: #color.
+			highlightable restore: evt shape selector: #border ]
+		for: self.
+	^ highlightable
 ]

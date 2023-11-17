@@ -1,20 +1,32 @@
+"
+I am the model for the call graph browser.
+I am responsible to compute call graph from a famix entity and store different related values.
+"
 Class {
 	#name : #MiCallGraphModel,
 	#superclass : #MiAbstractModel,
 	#instVars : [
 		'entity',
 		'profilModel',
-		'entryPoint'
+		'entryPoint',
+		'callGraph',
+		'famixEntityFromDict'
 	],
 	#category : #'Service-CallGraph'
 }
 
-{ #category : #'as yet unclassified' }
+{ #category : #computing }
+MiCallGraphModel >> callGraph [
+
+	^ callGraph ifNil: [ callGraph := entity callGraph ]
+]
+
+{ #category : #computing }
 MiCallGraphModel >> computeCallGraph [
 
 	| adjacencyList nodes |
 	adjacencyList := Dictionary new.
-	nodes := entity callGraph.
+	nodes := self callGraph.
 	nodes keysDo: [ :m | 
 		adjacencyList
 			at: m
@@ -54,7 +66,7 @@ MiCallGraphModel >> entryPoint: anObject [
 	entryPoint := anObject
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #computing }
 MiCallGraphModel >> famixEntityFrom: process [
 
 	| candidates processSignature processIdentifier mooseModel openPIndex closePIndex parameterString parameters newCandidates |
@@ -66,14 +78,12 @@ MiCallGraphModel >> famixEntityFrom: process [
 	processIdentifier := ((processSignature
 		                       copyFrom: 1
 		                       to: openPIndex - 1) withoutSuffix: ' ') , '('.
-
-	candidates := mooseModel allModelMethods select: [ :m |
-		              | mooseName |
-		              mooseName := m mooseName
-			                           replaceAllRegex: '\:\:'
-			                           with: '.'.
-		              mooseName beginsWith: processIdentifier ].
-
+	candidates := self famixEntityFromDict
+		              at: processIdentifier
+		              ifAbsent: [ {  } ].
+	candidates ifEmpty: [
+		'Dynamic method not found' traceCr.
+		^ nil ].
 	openPIndex + 1 = closePIndex ifTrue: [ ^ candidates first ].
 
 	parameterString := processSignature
@@ -97,9 +107,29 @@ MiCallGraphModel >> famixEntityFrom: process [
 			                   < m2 sourceAnchor startPos ]) collect: [ :p |
 			                  p declaredType name ].
 		parameterTypes = parameters ifTrue: [ newCandidates add: method ] ].
-	1 haltIf: [ newCandidates size = 1 ].
-	newCandidates ifEmpty: [  ].
+	newCandidates ifEmpty: [
+		'No matching parameters' traceCr.
+		^ nil ].
 	^ newCandidates first
+]
+
+{ #category : #computing }
+MiCallGraphModel >> famixEntityFromDict [
+
+	^ famixEntityFromDict ifNil: [
+		  | cg |
+		  famixEntityFromDict := Dictionary new.
+		  cg := self callGraph.
+		  cg keysDo: [ :m |
+			  | mooseName |
+			  mooseName := m mooseName
+				               copyFrom: 1
+				               to: (m mooseName indexOf: $().
+			  mooseName := mooseName replaceAllRegex: '\:\:' with: '.'.
+			  famixEntityFromDict
+				  at: mooseName
+				  ifPresent: [ :c | c add: m ]
+				  ifAbsentPut: [ OrderedCollection with: m ] ] ]
 ]
 
 { #category : #initialization }
@@ -133,7 +163,7 @@ MiCallGraphModel >> layerOf: anEntity [
 	^ #other
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #computing }
 MiCallGraphModel >> layeredLeveledCallGraph [
 
 	| adjList  visited toVisit layers layersDict otherDict layerOfEntity |
@@ -177,7 +207,7 @@ MiCallGraphModel >> layeredLeveledCallGraph [
 	^ layers collect:  [ :l | l -> (layersDict at: l) ]
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #computing }
 MiCallGraphModel >> leveledCallGraph [
 
 	| adjList lvlcg visited toVisit |

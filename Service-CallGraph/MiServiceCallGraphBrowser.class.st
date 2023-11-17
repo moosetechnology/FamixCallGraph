@@ -1,3 +1,8 @@
+"
+The call graph browser.
+
+
+"
 Class {
 	#name : #MiServiceCallGraphBrowser,
 	#superclass : #MiAbstractVisualizationBrowser,
@@ -37,7 +42,7 @@ MiServiceCallGraphBrowser class >> windowSize [
 { #category : #testing }
 MiServiceCallGraphBrowser >> canFollowEntity: anObject [
 
-	^ anObject isMethod
+	^ anObject isMooseEntity and: [ anObject isMethod ]
 ]
 
 { #category : #actions }
