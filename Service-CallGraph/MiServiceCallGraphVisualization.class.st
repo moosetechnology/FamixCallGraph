@@ -4,7 +4,8 @@ Class {
 	#instVars : [
 		'methodShapes',
 		'colorDictionary',
-		'methodShapeDict'
+		'methodShapeDict',
+		'menuPage'
 	],
 	#category : #'Service-CallGraph'
 }
@@ -70,6 +71,96 @@ MiServiceCallGraphVisualization >> buildLines [
 		canvas: self canvas;
 		shapes: methodShapes;
 		connectToAll: [ :model | adjList at: model ].
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> buildMenu [
+
+	self buildMenuPage.
+	self buildMenuButton
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> buildMenuButton [
+
+	| optionLabel optionButton optionShapes arrow background |
+	optionLabel := (RSLabel text: 'Options')
+		               fontSize: 13;
+		               yourself.
+
+	arrow := RSShapeFactory vee
+		         size: 8;
+		         color: Color black;
+		         yourself.
+
+	optionShapes := RSGroup withAll: {
+			                optionLabel.
+			                arrow }.
+
+	RSHorizontalLineLayout new
+		alignMiddle;
+		on: optionShapes.
+
+	optionButton := optionShapes asShape.
+	optionButton padding: 5.
+	background := RSBox new
+		              color: (Color fromHexString: 'F4F4F4');
+		              cornerRadius: 5;
+		              borderColor: (Color fromHexString: 'AAAAAA');
+		              extent: optionButton extent;
+		              yourself.
+	optionButton add: background.
+	optionButton propertyAt: #background put: background.
+	self canvas add: optionButton.
+	background pushBack.
+	optionButton setAsFixed.
+	optionButton translateTopLeftTo: 40 @ -5.
+
+	optionButton @ (RSHighlightable new
+		 highlightShapes: [ :s | { (s propertyAt: #background) } ] yourself;
+		 highlightColor: (Color fromHexString: 'C4C4C4')).
+
+	optionButton
+		when: RSMouseClick
+		do: [ :evt | self openMenu ]
+		for: self
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> buildMenuPage [
+
+	| closeButton |
+	menuPage := RSComposite new
+		            color: (Color fromHexString: 'F4F4F4');
+		            borderColor: (Color fromHexString: 'CCCCCC');
+		            yourself.
+
+	self canvas add: menuPage.
+	menuPage setAsFixed.
+
+	closeButton := RSShapeFactory plus
+		               size: 9;
+		               yourself.
+	closeButton rotateByDegrees: 45.
+	menuPage add: closeButton.
+	self canvas
+		when: RSExtentChangedEvent
+		do: [ :evt |
+			menuPage
+				extent: evt canvas extent * (0.15 @ 1);
+				translateBottomLeftTo: 0 asPoint ]
+		for: self.
+	closeButton
+		when: RSMouseClick
+		do: [ :evt | self closeMenu ]
+		for: self
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> closeMenu [
+
+	menuPage translateBottomLeftTo: -1 asPoint.
+	self canvas signalUpdate
 ]
 
 { #category : #running }
@@ -227,9 +318,18 @@ MiServiceCallGraphVisualization >> model [
 ]
 
 { #category : #running }
+MiServiceCallGraphVisualization >> openMenu [
+
+	menuPage translateTopLeftTo: 0 asPoint.
+	self canvas signalUpdate
+]
+
+{ #category : #running }
 MiServiceCallGraphVisualization >> run [
 
-	self runAsRoassalJob
+	self canvas originTopLeft.
+	self runAsRoassalJob.
+	self buildMenu
 ]
 
 { #category : #running }
@@ -250,7 +350,7 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 
 	layerShapes do: [ :layer | shapes add: layer ] separatedBy: [
 		shapes add: (RSBox new
-				 extent: layerShapes anyOne extent x * 1.5 @ 1;
+				 extent: layerShapes anyOne extent x * 1.1 @ 1;
 				 color: Color transparent;
 				 border: (RSBorder new dashArray: #( 10 10 ));
 				 yourself) ].
