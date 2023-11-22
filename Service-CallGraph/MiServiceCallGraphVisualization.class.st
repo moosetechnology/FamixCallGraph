@@ -41,7 +41,8 @@ MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 						for: self.
 					line
 						color: (Color fromHexString: '27AE60');
-						width: 2 ] ] ]
+						width: 2 ] ] ].
+	self canvas signalUpdate
 ]
 
 { #category : #running }
@@ -129,7 +130,7 @@ MiServiceCallGraphVisualization >> buildMenuButton [
 { #category : #running }
 MiServiceCallGraphVisualization >> buildMenuPage [
 
-	| closeButton |
+	| closeButton option option1 options group option2 |
 	menuPage := RSComposite new
 		            color: (Color fromHexString: 'F4F4F4');
 		            borderColor: (Color fromHexString: 'CCCCCC');
@@ -153,6 +154,50 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 	closeButton
 		when: RSMouseClick
 		do: [ :evt | self closeMenu ]
+		for: self.
+
+	option := RSComposite new
+		          color: Color gray;
+		          add: (RSLabel text: 'Color layer shapes');
+		          adjustToChildren;
+		          yourself.
+
+
+	option
+		when: RSMouseClick
+		do: [ :evt | self colorLayerEntities ]
+		for: self.
+
+	option1 := RSComposite new
+		           color: Color gray;
+		           add: (RSLabel text: 'Show dynamic invocations');
+		           adjustToChildren;
+		           yourself.
+
+	option2 := RSComposite new
+		           color: Color gray;
+		           add: (RSLabel text: 'Show recursive methodes');
+		           adjustToChildren;
+		           yourself.
+
+
+
+	group := RSGroup withAll: {
+			         option.
+			         option1.
+			         option2 }.
+	RSVerticalLineLayout on: group.
+	options := group asShape.
+
+	menuPage add: options.
+	options translateTopLeftTo: 0 asPoint.
+	option1
+		when: RSMouseClick
+		do: [ :evt | self addDynamicLinksFrom: self model entryPoint ]
+		for: self.
+	option2
+		when: RSMouseClick
+		do: [ :evt | self showRecursiveMethods ]
 		for: self
 ]
 
@@ -169,6 +214,13 @@ MiServiceCallGraphVisualization >> colorFor: anEntity [
 	^ colorDictionary
 		  at: (self layerOf: anEntity)
 		  ifAbsent: [ Color gray ]
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> colorLayerEntities [
+
+	methodShapes do: [ :s | s color: (self colorFor: s model) ].
+	self canvas signalUpdate
 ]
 
 { #category : #running }
@@ -366,14 +418,11 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 	self canvas useRTree.
 
 	job title: 'Rendering lines'.
-	job currentValue: 60.
+	job currentValue: 70.
 
 	self buildLines.
 
-	job title: 'Adding dyanmic call graph'.
-	job currentValue: 80.
-
-	self addDynamicLinksFrom: self model entryPoint.
+	
 
 	job title: ''.
 	job currentValue: 100.
@@ -389,7 +438,6 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 	shape := RSCircle new
 		         model: anEntity;
 		         size: 30;
-		         color: (self colorFor: anEntity);
 		         popupText: #mooseName;
 		         draggable;
 		         when: RSMouseClick
@@ -402,10 +450,7 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 		         yourself.
 	self addInteractionsOn: shape.
 	anEntity outgoingInvocations isEmpty ifTrue: [ shape size: 10 ].
-	anEntity isRecursive ifTrue: [
-		shape border
-			width: 10;
-			color: Color purple ].
+	
 	methodShapeDict at: anEntity put: shape.
 	methodShapes add: shape.
 
@@ -430,6 +475,17 @@ MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 				 yourself).
 
 	^ shape
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> showRecursiveMethods [
+
+	methodShapes do: [ :s |
+		s model isRecursive ifTrue: [
+			s border
+				width: 10;
+				color: Color purple ].
+		s signalUpdate ]
 ]
 
 { #category : #interactions }
