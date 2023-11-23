@@ -7,7 +7,8 @@ Class {
 		'methodShapeDict',
 		'menuPage',
 		'optionButton',
-		'menuOpen'
+		'menuOpen',
+		'dynamicMethodRate'
 	],
 	#category : #'Service-CallGraph'
 }
@@ -15,11 +16,18 @@ Class {
 { #category : #running }
 MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 
-	| entry subs |
+	| entry subs methodRate |
 	(process subProcesses reject: [ :p | p rawMthSignature = 'Self time' ])
 		do: [ :p | self addDynamicLinksFrom: p ].
 	entry := self model famixEntityFrom: process.
 	entry ifNil: [ ^ self ].
+	methodRate := self processMethodRateFor: process.
+	dynamicMethodRate
+		at: entry
+		ifPresent: [ :rate |
+		dynamicMethodRate at: entry put: rate + methodRate ]
+		ifAbsentPut: methodRate.
+
 	subs := process subProcesses
 		        collect: [ :sp | sp -> (self model famixEntityFrom: sp) ]
 		        thenReject: [ :assoc | assoc value isNil ].
@@ -131,7 +139,7 @@ MiServiceCallGraphVisualization >> buildMenuButton [
 { #category : #running }
 MiServiceCallGraphVisualization >> buildMenuPage [
 
-	| option option1 options group option2 option3 option0 option4 option5 option6 option7 |
+	| option option1 options group option2 option3 option0 option4 option5 option6 option7 option8 |
 	menuPage := RSComposite new
 		            color: (Color fromHexString: 'F4F4F4');
 		            borderColor: (Color fromHexString: 'CCCCCC');
@@ -195,6 +203,11 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		           adjustToChildren;
 		           yourself.
 
+	option8 := RSComposite new
+		           model: 'Show bottlenecks';
+		           adjustToChildren;
+		           yourself.
+
 	group := RSGroup withAll: {
 			         option.
 			         option0.
@@ -204,7 +217,8 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 			         option4.
 			         option5.
 			         option6.
-			         option7 }.
+			         option7.
+			         option8 }.
 
 
 	group do: [ :op |
@@ -287,6 +301,14 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		when: RSMouseClick
 		do: [ :evt |
 			self showOverriddenMethods.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+	option8
+		when: RSMouseClick
+		do: [ :evt |
+			self showBottlenecks.
 			evt shape children first
 				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
 				signalUpdate ]
@@ -426,7 +448,8 @@ MiServiceCallGraphVisualization >> initialize [
 	methodShapes := OrderedCollection new.
 	self initializeColorDictionary.
 	methodShapeDict := Dictionary new.
-	menuOpen := false
+	menuOpen := false.
+	dynamicMethodRate := Dictionary new
 ]
 
 { #category : #initialization }
@@ -530,6 +553,30 @@ MiServiceCallGraphVisualization >> openMenu [
 ]
 
 { #category : #running }
+MiServiceCallGraphVisualization >> processMethodRateFor: process [
+
+	| time integer sum |
+	integer := [ :s |
+	           | str |
+	           str := s asOrderedCollection.
+	           str removeAllSuchThat: #isSpaceSeparator.
+	           (String withAll: str) asInteger ].
+
+	time := [ :s |
+	        | t |
+	        t := s copyFrom: (s indexOf: $m).
+	        integer value: t ].
+
+
+	sum := (process subProcesses reject: [ :p |
+		        p rawMthSignature = 'Self time' ]) sum: [ :p |
+		       (time value: p totalTime) / (integer value: p nbInvocations) ].
+	sum = 0 ifTrue: [ sum := 1 ].
+	^ (time value: process totalTime)
+	  / (integer value: process nbInvocations) / sum
+]
+
+{ #category : #running }
 MiServiceCallGraphVisualization >> run [
 
 	self canvas originTopLeft.
@@ -629,6 +676,25 @@ MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 				 yourself).
 
 	^ shape
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> showBottlenecks [
+
+	| rates min max scale |
+	rates := dynamicMethodRate values.
+	min := rates min.
+	max := rates max.
+	scale := NSScale log
+		         domain: {
+				         min.
+				         max };
+		         yourself.
+	scale range: { 30. 300 }.
+	dynamicMethodRate associationsDo: [ :assoc |
+		(methodShapeDict at: assoc key)
+			color: (scale scale: assoc value);
+			signalUpdate ]
 ]
 
 { #category : #running }
