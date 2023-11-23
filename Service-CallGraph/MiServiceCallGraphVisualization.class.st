@@ -5,7 +5,9 @@ Class {
 		'methodShapes',
 		'colorDictionary',
 		'methodShapeDict',
-		'menuPage'
+		'menuPage',
+		'optionButton',
+		'menuOpen'
 	],
 	#category : #'Service-CallGraph'
 }
@@ -19,30 +21,24 @@ MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 	entry := self model famixEntityFrom: process.
 	entry ifNil: [ ^ self ].
 	subs := process subProcesses
-		        collect: [ :sp | self model famixEntityFrom: sp ]
-		        thenReject: #isNil.
+		        collect: [ :sp | sp -> (self model famixEntityFrom: sp) ]
+		        thenReject: [ :assoc | assoc value isNil ].
 	subs do: [ :s |
 		| line |
-		line := (methodShapeDict at: s) incomingLines
+		line := (methodShapeDict at: s value) incomingLines
 			        detect: [ :l | l from model = entry ]
 			        ifNone: [ nil ].
 
 		line ifNotNil: [
 			line
 				propertyAt: #processes
-				ifPresent: [ (line propertyAt: #processes) add: process ]
+				ifPresent: [ (line propertyAt: #processes) add: s key ]
 				ifAbsent: [
-					line
-						propertyAt: #processes
-						put: (OrderedCollection with: process).
+					line propertyAt: #processes put: (OrderedCollection with: s key).
 					line
 						when: RSMouseClick
 						do: [ :evt | (evt shape propertyAt: #processes) inspect ]
-						for: self.
-					line
-						color: (Color fromHexString: '27AE60');
-						width: 2 ] ] ].
-	self canvas signalUpdate
+						for: self ] ] ]
 ]
 
 { #category : #running }
@@ -62,7 +58,7 @@ MiServiceCallGraphVisualization >> buildLines [
 	adjList := self model computeCallGraph.
 	RSLineBuilder line
 		withBorderAttachPoint;
-		moveBehind;
+		
 		attachPoint: (RSBorderAttachPoint new endOffset: 5);
 		markerEnd: (RSShapeFactory arrow
 				 size: 10;
@@ -72,6 +68,7 @@ MiServiceCallGraphVisualization >> buildLines [
 		canvas: self canvas;
 		shapes: methodShapes;
 		connectToAll: [ :model | adjList at: model ].
+	self canvas lines @ RSPopup
 ]
 
 { #category : #running }
@@ -84,9 +81,9 @@ MiServiceCallGraphVisualization >> buildMenu [
 { #category : #running }
 MiServiceCallGraphVisualization >> buildMenuButton [
 
-	| optionLabel optionButton optionShapes arrow background |
+	| optionLabel optionShapes arrow background |
 	optionLabel := (RSLabel text: 'Options')
-		               fontSize: 13;
+		               fontSize: 10;
 		               yourself.
 
 	arrow := RSShapeFactory vee
@@ -103,34 +100,38 @@ MiServiceCallGraphVisualization >> buildMenuButton [
 		on: optionShapes.
 
 	optionButton := optionShapes asShape.
+
+
 	optionButton padding: 5.
+	optionButton width: menuPage width.
+
 	background := RSBox new
 		              color: (Color fromHexString: 'F4F4F4');
-		              cornerRadius: 5;
 		              borderColor: (Color fromHexString: 'AAAAAA');
 		              extent: optionButton extent;
 		              yourself.
 	optionButton add: background.
 	optionButton propertyAt: #background put: background.
+
 	self canvas add: optionButton.
 	background pushBack.
 	optionButton setAsFixed.
 	optionButton translateTopLeftTo: 40 @ -5.
 
-	optionButton @ (RSHighlightable new
-		 highlightShapes: [ :s | { (s propertyAt: #background) } ] yourself;
-		 highlightColor: (Color fromHexString: 'C4C4C4')).
+	optionButton
+	@
+	(RSHighlightable new highlightColor: (Color fromHexString: 'C4C4C4')).
 
 	optionButton
 		when: RSMouseClick
-		do: [ :evt | self openMenu ]
+		do: [ :evt | self toggleMenu ]
 		for: self
 ]
 
 { #category : #running }
 MiServiceCallGraphVisualization >> buildMenuPage [
 
-	| closeButton option option1 options group option2 |
+	| option option1 options group option2 option3 option0 option4 option5 option6 option7 |
 	menuPage := RSComposite new
 		            color: (Color fromHexString: 'F4F4F4');
 		            borderColor: (Color fromHexString: 'CCCCCC');
@@ -139,88 +140,234 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 	self canvas add: menuPage.
 	menuPage setAsFixed.
 
-	closeButton := RSShapeFactory plus
-		               size: 9;
-		               yourself.
-	closeButton rotateByDegrees: 45.
-	menuPage add: closeButton.
-	self canvas
-		when: RSExtentChangedEvent
-		do: [ :evt |
-			menuPage
-				extent: evt canvas extent * (0.15 @ 1);
-				translateBottomLeftTo: 0 asPoint ]
-		for: self.
-	closeButton
-		when: RSMouseClick
-		do: [ :evt | self closeMenu ]
-		for: self.
+
 
 	option := RSComposite new
-		          color: Color gray;
-		          add: (RSLabel text: 'Color layer shapes');
+		          model: 'Color layer methods';
 		          adjustToChildren;
 		          yourself.
 
 
 	option
 		when: RSMouseClick
-		do: [ :evt | self colorLayerEntities ]
+		do: [ :evt |
+			self colorLayerEntities.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
 		for: self.
 
+	option0 := RSComposite new
+		           model: 'Color transverse methods';
+		           adjustToChildren;
+		           yourself.
+
 	option1 := RSComposite new
-		           color: Color gray;
-		           add: (RSLabel text: 'Show dynamic invocations');
+		           model: 'Show dynamic invocations';
 		           adjustToChildren;
 		           yourself.
 
 	option2 := RSComposite new
-		           color: Color gray;
-		           add: (RSLabel text: 'Show recursive methodes');
+		           model: 'Show recursive methodes';
 		           adjustToChildren;
 		           yourself.
 
+	option3 := RSComposite new
+		           model: 'Show leaf methods';
+		           adjustToChildren;
+		           yourself.
+	option4 := RSComposite new
+		           model: 'Show nbInvocation heatmap';
+		           adjustToChildren;
+		           yourself.
 
+	option5 := RSComposite new
+		           model: 'Show layer violations';
+		           adjustToChildren;
+		           yourself.
+	option6 := RSComposite new
+		           model: 'Show layer interfaces';
+		           adjustToChildren;
+		           yourself.
+
+	option7 := RSComposite new
+		           model: 'Show overridden methods';
+		           adjustToChildren;
+		           yourself.
 
 	group := RSGroup withAll: {
 			         option.
+			         option0.
 			         option1.
-			         option2 }.
+			         option2.
+			         option3.
+			         option4.
+			         option5.
+			         option6.
+			         option7 }.
+
+
+	group do: [ :op |
+		op
+			add: (RSBitmap new
+					 form: (Smalltalk ui icons iconNamed: #checkboxUnselected);
+					 yourself);
+			add: (RSLabel text: op model).
+		RSHorizontalLineLayout new
+			alignMiddle;
+			on: op children.
+		op adjustToChildren ].
+
 	RSVerticalLineLayout on: group.
 	options := group asShape.
 
 	menuPage add: options.
-	options translateTopLeftTo: 0 asPoint.
+	menuPage padding: 10.
+	self closeMenu.
+
+	option0
+		when: RSMouseClick
+		do: [ :evt |
+			self colorTransverseEntities.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+
 	option1
 		when: RSMouseClick
-		do: [ :evt | self addDynamicLinksFrom: self model entryPoint ]
+		do: [ :evt |
+			self showDynamicInvocations.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
 		for: self.
 	option2
 		when: RSMouseClick
-		do: [ :evt | self showRecursiveMethods ]
+		do: [ :evt |
+			self showRecursiveMethods.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+	option3
+		when: RSMouseClick
+		do: [ :evt |
+			self showLeaves.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+	option4
+		when: RSMouseClick
+		do: [ :evt |
+			self callsHeatMap.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+	option5
+		when: RSMouseClick
+		do: [ :evt |
+			self showLayerViolations.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+
+	option6
+		when: RSMouseClick
+		do: [ :evt |
+			self showLayerInterfaces.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
+		for: self.
+	option7
+		when: RSMouseClick
+		do: [ :evt |
+			self showOverriddenMethods.
+			evt shape children first
+				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				signalUpdate ]
 		for: self
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> callsHeatMap [
+
+	| invocationDict scale max min |
+	invocationDict := Dictionary new.
+	self canvas lines do: [ :l |
+		(l hasProperty: #processes) ifTrue: [
+			| nbInvoc |
+			nbInvoc := (l propertyAt: #processes) sum: [ :p |
+				           | str |
+				           str := p nbInvocations asOrderedCollection.
+				           str removeAllSuchThat: #isSpaceSeparator.
+				           (String withAll: str) asInteger ].
+			invocationDict at: l put: nbInvoc ] ].
+	max := invocationDict values max.
+	min := invocationDict values min.
+	scale := NSScale log domain: {
+			         min.
+			         max }.
+	
+	scale range: {
+			Color green.
+			Color red }.
+	invocationDict associationsDo: [ :assoc |
+		| line c |
+		line := assoc key.
+		c := scale scale: assoc value.
+		line color: c.
+		line model: assoc value ]
 ]
 
 { #category : #running }
 MiServiceCallGraphVisualization >> closeMenu [
 
+	menuOpen := false.
 	menuPage translateBottomLeftTo: -1 asPoint.
-	self canvas signalUpdate
+	menuPage signalUpdate.
+
+	optionButton ifNotNil: [
+		optionButton children third rotateByDegrees: 180.
+		optionButton signalUpdate ]
 ]
 
 { #category : #running }
 MiServiceCallGraphVisualization >> colorFor: anEntity [
 
-	^ colorDictionary
-		  at: (self layerOf: anEntity)
-		  ifAbsent: [ Color gray ]
+	^ self colorForLayer: (self layerOf: anEntity)
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> colorForLayer: symbolLayer [
+
+	^ colorDictionary at: symbolLayer ifAbsent: [ Color gray ]
 ]
 
 { #category : #running }
 MiServiceCallGraphVisualization >> colorLayerEntities [
 
-	methodShapes do: [ :s | s color: (self colorFor: s model) ].
+	methodShapes do: [ :s |
+		| layer |
+		layer := self layerOf: s model.
+		layer = #transverse ifFalse: [ s color: (self colorForLayer: layer) ] ].
 	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> colorTransverseEntities [
+
+	methodShapes do: [ :s |
+		| layer |
+		layer := self layerOf: s model.
+		layer = #transverse ifTrue: [
+			s
+				color: (self colorForLayer: layer);
+				signalUpdate ] ]
 ]
 
 { #category : #running }
@@ -278,7 +425,8 @@ MiServiceCallGraphVisualization >> initialize [
 	super initialize.
 	methodShapes := OrderedCollection new.
 	self initializeColorDictionary.
-	methodShapeDict := Dictionary new
+	methodShapeDict := Dictionary new.
+	menuOpen := false
 ]
 
 { #category : #initialization }
@@ -372,8 +520,13 @@ MiServiceCallGraphVisualization >> model [
 { #category : #running }
 MiServiceCallGraphVisualization >> openMenu [
 
-	menuPage translateTopLeftTo: 0 asPoint.
-	self canvas signalUpdate
+	menuOpen := true.
+	menuPage translateTopLeftTo:
+		optionButton encompassingRectangle bottomLeft.
+	menuPage signalUpdate.
+	optionButton ifNotNil: [
+		optionButton children third rotateByDegrees: 180.
+		optionButton signalUpdate ]
 ]
 
 { #category : #running }
@@ -381,7 +534,9 @@ MiServiceCallGraphVisualization >> run [
 
 	self canvas originTopLeft.
 	self runAsRoassalJob.
-	self buildMenu
+	self buildMenu.
+	
+	
 ]
 
 { #category : #running }
@@ -422,11 +577,10 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 
 	self buildLines.
 
-	
+	self addDynamicLinksFrom: self model entryPoint.
 
 	job title: ''.
 	job currentValue: 100.
-
 	(Delay forDuration: (Duration milliSeconds: 200)) wait ]
 		runAsRoassalJobOn: self canvas
 ]
@@ -449,7 +603,7 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 				          yourself);
 		         yourself.
 	self addInteractionsOn: shape.
-	anEntity outgoingInvocations isEmpty ifTrue: [ shape size: 10 ].
+	
 	
 	methodShapeDict at: anEntity put: shape.
 	methodShapes add: shape.
@@ -478,6 +632,73 @@ MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 ]
 
 { #category : #running }
+MiServiceCallGraphVisualization >> showDynamicInvocations [
+
+	self canvas lines do: [ :line |
+		(line hasProperty: #processes) ifTrue: [
+			line
+				color: (Color fromHexString: '27AE60');
+				width: 2 ] ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> showLayerInterfaces [
+
+	| interfaces |
+	interfaces := { 'ServiceAbstract'. 'DaoAbstract'. 'UseCaseAbstract' }.
+	
+	
+	methodShapeDict associationsDo: [ :assoc |
+		| method |
+		method := assoc key.
+		(method parentType withSuperclassHierarchy anySatisfy: [ :sc |
+			 interfaces anySatisfy: [ :it | sc name = it ] ]) ifTrue: [
+			
+			assoc value color: Color red ] ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> showLayerViolations [
+
+	| violations |
+	violations := {
+		              (#dao -> #service).
+		              (#dao -> #usecase).
+		              (#service -> #usecase) }.
+	self canvas lines do: [ :line |
+		| link |
+		link := (self layerOf: line from model)
+		        -> (self layerOf: line to model).
+		(violations anySatisfy: [ :v | v = link ]) ifTrue: [
+			line
+				color: Color red;
+				signalUpdate ] ]
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> showLeaves [
+
+	methodShapes do: [ :s |
+		(s model outgoingInvocations reject: [ :i | i candidates first isStub ])
+			isEmpty ifTrue: [
+			s size: 10.
+			s position: s position.
+			s signalUpdate ] ]
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> showOverriddenMethods [
+
+	methodShapeDict associationsDo: [ :assoc |
+		assoc key isOverridden ifTrue: [
+			assoc value
+				color: Color blue;
+				signalUpdate ] ]
+]
+
+{ #category : #running }
 MiServiceCallGraphVisualization >> showRecursiveMethods [
 
 	methodShapes do: [ :s |
@@ -486,6 +707,14 @@ MiServiceCallGraphVisualization >> showRecursiveMethods [
 				width: 10;
 				color: Color purple ].
 		s signalUpdate ]
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> toggleMenu [
+
+	menuOpen
+		ifTrue: [ self closeMenu ]
+		ifFalse: [ self openMenu ]
 ]
 
 { #category : #interactions }
