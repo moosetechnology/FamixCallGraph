@@ -681,19 +681,36 @@ MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 { #category : #running }
 MiServiceCallGraphVisualization >> showBottlenecks [
 
-	| rates min max scale |
+	| rates min max s |
 	rates := dynamicMethodRate values.
-	min := rates min.
-	max := rates max.
-	scale := NSScale log
-		         domain: {
-				         min.
-				         max };
-		         yourself.
-	scale range: { 30. 300 }.
+	min := rates min asInteger.
+	min := min = 0
+		       ifTrue: 1
+		       ifFalse: min.
+	max := rates max asInteger.
+	s := NSScale log
+		     domain: {
+				     min.
+				     max };
+		     yourself.
+	s range: { 30. 300 }.
 	dynamicMethodRate associationsDo: [ :assoc |
-		(methodShapeDict at: assoc key)
-			color: (scale scale: assoc value);
+		| value shape |
+		shape := RSCircle new.
+		value := assoc value asInteger.
+		value := value = 0
+			         ifTrue: 1
+			         ifFalse: value.
+
+
+		self canvas add: shape.
+
+		shape
+			size: (s scale: value);
+			color: Color red translucent;
+			borderWidth: 1;
+			position: (methodShapeDict at: assoc key) positionInCanvas;
+			pushBack;
 			signalUpdate ]
 ]
 
