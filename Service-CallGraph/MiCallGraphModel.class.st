@@ -16,6 +16,16 @@ Class {
 }
 
 { #category : #computing }
+MiCallGraphModel >> addFamixMethod: method for: class [
+
+	| actualMethod |
+	actualMethod := class overrides: method.
+	class name traceCr.
+	(class subInheritances collect: #source) do: [ :c |
+		self addFamixMethod: actualMethod for: c ]
+]
+
+{ #category : #computing }
 MiCallGraphModel >> callGraph [
 
 	^ callGraph ifNil: [ callGraph := entity callGraph ]
@@ -69,9 +79,12 @@ MiCallGraphModel >> entryPoint: anObject [
 { #category : #computing }
 MiCallGraphModel >> famixEntityFrom: process [
 
-	| candidates processSignature processIdentifier mooseModel openPIndex closePIndex parameterString parameters newCandidates |
+	| famixEntity candidates processSignature processIdentifier mooseModel openPIndex closePIndex parameterString parameters newCandidates |
+	
 	mooseModel := entity mooseModel.
+	
 	processSignature := process rawMthSignature.
+	"1haltIf: [ processSignature includes: $$ ]."
 	processSignature = 'Self time' ifTrue: [ ^ nil ].
 	openPIndex := processSignature indexOf: $(.
 	closePIndex := processSignature indexOf: $).
@@ -110,26 +123,36 @@ MiCallGraphModel >> famixEntityFrom: process [
 	newCandidates ifEmpty: [
 		'No matching parameters' traceCr.
 		^ nil ].
-	^ newCandidates first
+	famixEntity := newCandidates first.
+	process origin: famixEntity.
+	^ famixEntity
 ]
 
 { #category : #computing }
 MiCallGraphModel >> famixEntityFromDict [
+
+	| addFamixEntity |
+	addFamixEntity := [ :dict :m |
+	                  | mooseName |
+	                  mooseName := m mooseName
+		                               copyFrom: 1
+		                               to: (m mooseName indexOf: $().
+	                  mooseName := mooseName
+		                               replaceAllRegex: '\:\:'
+		                               with: '.'.
+	                  famixEntityFromDict
+		                  at: mooseName
+		                  ifPresent: [ :c | c add: m ]
+		                  ifAbsentPut: [ OrderedCollection with: m ] ].
 
 	^ famixEntityFromDict ifNil: [
 		  | cg |
 		  famixEntityFromDict := Dictionary new.
 		  cg := self callGraph.
 		  cg keysDo: [ :m |
-			  | mooseName |
-			  mooseName := m mooseName
-				               copyFrom: 1
-				               to: (m mooseName indexOf: $().
-			  mooseName := mooseName replaceAllRegex: '\:\:' with: '.'.
-			  famixEntityFromDict
-				  at: mooseName
-				  ifPresent: [ :c | c add: m ]
-				  ifAbsentPut: [ OrderedCollection with: m ] ] ]
+			  m isOverridden ifTrue: [  ].
+			 self addFamixMethod: m for: m parentType.
+			  addFamixEntity value: famixEntityFromDict value: m ] ]
 ]
 
 { #category : #initialization }

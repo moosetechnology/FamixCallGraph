@@ -318,7 +318,7 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 { #category : #running }
 MiServiceCallGraphVisualization >> callsHeatMap [
 
-	| invocationDict scale max min |
+	| invocationDict scale max min sc |
 	invocationDict := Dictionary new.
 	self canvas lines do: [ :l |
 		(l hasProperty: #processes) ifTrue: [
@@ -331,19 +331,19 @@ MiServiceCallGraphVisualization >> callsHeatMap [
 			invocationDict at: l put: nbInvoc ] ].
 	max := invocationDict values max.
 	min := invocationDict values min.
-	scale := NSScale log domain: {
-			         min.
-			         max }.
+	sc := OrderedCollection new.
+	min to: max by: max - min / 9 do: [ :i | sc add: i ].
+
+	scale := NSScale linear domain: sc.
 	
-	scale range: {
-			Color green.
-			Color red }.
+	scale range: RSColorPalette diverging rdylbu10 range.
+	
 	invocationDict associationsDo: [ :assoc |
 		| line c |
 		line := assoc key.
 		c := scale scale: assoc value.
 		line color: c.
-		line model: assoc value ]
+		line model: assoc value ].
 ]
 
 { #category : #running }
@@ -625,7 +625,7 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 	self buildLines.
 
 	self addDynamicLinksFrom: self model entryPoint.
-
+	
 	job title: ''.
 	job currentValue: 100.
 	(Delay forDuration: (Duration milliSeconds: 200)) wait ]
