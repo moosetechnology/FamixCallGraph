@@ -4,6 +4,6 @@ Extension { #name : #FamixJavaType }
 FamixJavaType >> overrides: method [
 
 	^ self methods
-		  detect: [ :m | method overridingMethods includes: m ]
+		  detect: [ :m | method signature = m signature ]
 		  ifNone: [ method ]
 ]

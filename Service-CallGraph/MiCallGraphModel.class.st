@@ -18,9 +18,16 @@ Class {
 { #category : #computing }
 MiCallGraphModel >> addFamixMethod: method for: class [
 
-	| actualMethod |
+	| actualMethod mooseName |
 	actualMethod := class overrides: method.
-	class name traceCr.
+	mooseName := actualMethod mooseName
+		             copyFrom: 1
+		             to: (actualMethod mooseName indexOf: $().
+	mooseName := mooseName replaceAllRegex: '\:\:' with: '.'.
+	famixEntityFromDict
+		at: mooseName
+		ifPresent: [ :c | c add: actualMethod ]
+		ifAbsentPut: [ OrderedCollection with: actualMethod ].
 	(class subInheritances collect: #source) do: [ :c |
 		self addFamixMethod: actualMethod for: c ]
 ]
@@ -80,9 +87,8 @@ MiCallGraphModel >> entryPoint: anObject [
 MiCallGraphModel >> famixEntityFrom: process [
 
 	| famixEntity candidates processSignature processIdentifier mooseModel openPIndex closePIndex parameterString parameters newCandidates |
-	
 	mooseModel := entity mooseModel.
-	
+
 	processSignature := process rawMthSignature.
 	"1haltIf: [ processSignature includes: $$ ]."
 	processSignature = 'Self time' ifTrue: [ ^ nil ].
@@ -94,9 +100,12 @@ MiCallGraphModel >> famixEntityFrom: process [
 	candidates := self famixEntityFromDict
 		              at: processIdentifier
 		              ifAbsent: [ {  } ].
-	candidates ifEmpty: [
+
+	candidates ifEmpty: [ "Not in static call graph, sould look for it in model"
+		
 		'Dynamic method not found' traceCr.
 		^ nil ].
+
 	openPIndex + 1 = closePIndex ifTrue: [ ^ candidates first ].
 
 	parameterString := processSignature
@@ -134,25 +143,15 @@ MiCallGraphModel >> famixEntityFromDict [
 	| addFamixEntity |
 	addFamixEntity := [ :dict :m |
 	                  | mooseName |
-	                  mooseName := m mooseName
-		                               copyFrom: 1
-		                               to: (m mooseName indexOf: $().
-	                  mooseName := mooseName
-		                               replaceAllRegex: '\:\:'
-		                               with: '.'.
-	                  famixEntityFromDict
-		                  at: mooseName
-		                  ifPresent: [ :c | c add: m ]
-		                  ifAbsentPut: [ OrderedCollection with: m ] ].
-
+	                 ].
+	
 	^ famixEntityFromDict ifNil: [
 		  | cg |
 		  famixEntityFromDict := Dictionary new.
 		  cg := self callGraph.
 		  cg keysDo: [ :m |
 			  m isOverridden ifTrue: [  ].
-			 self addFamixMethod: m for: m parentType.
-			  addFamixEntity value: famixEntityFromDict value: m ] ]
+			 self addFamixMethod: m for: m parentType] ]
 ]
 
 { #category : #initialization }

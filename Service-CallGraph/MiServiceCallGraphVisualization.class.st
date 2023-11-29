@@ -31,11 +31,16 @@ MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 	subs := process subProcesses
 		        collect: [ :sp | sp -> (self model famixEntityFrom: sp) ]
 		        thenReject: [ :assoc | assoc value isNil ].
+
 	subs do: [ :s |
 		| line |
-		line := (methodShapeDict at: s value) incomingLines
-			        detect: [ :l | l from model = entry ]
-			        ifNone: [ nil ].
+		line := methodShapeDict
+			        at: s value
+			        ifPresent: [ :ss |
+				        ss incomingLines
+					        detect: [ :l | l from model = entry ]
+					        ifNone: [ nil ] ]
+			        ifAbsent: [ nil ].
 
 		line ifNotNil: [
 			line
@@ -60,19 +65,45 @@ MiServiceCallGraphVisualization >> addInteractionsOn: aShape [
 ]
 
 { #category : #running }
+MiServiceCallGraphVisualization >> baseLineColor [
+
+	^ Color gray translucent
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> baseShapeBorder [
+
+	^ RSBorder new
+		  width: 3;
+		  color: Color gray;
+		  yourself
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> baseShapeColor [
+
+	^ Color lightGray
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> baseShapeSize [
+
+	^ 30
+]
+
+{ #category : #running }
 MiServiceCallGraphVisualization >> buildLines [
 
 	| adjList |
 	adjList := self model computeCallGraph.
 	RSLineBuilder line
 		withBorderAttachPoint;
-		
 		attachPoint: (RSBorderAttachPoint new endOffset: 5);
 		markerEnd: (RSShapeFactory arrow
 				 size: 10;
 				 color: Color black;
 				 yourself);
-		color: Color gray translucent;
+		color: self baseLineColor;
 		canvas: self canvas;
 		shapes: methodShapes;
 		connectToAll: [ :model | adjList at: model ].
@@ -139,7 +170,7 @@ MiServiceCallGraphVisualization >> buildMenuButton [
 { #category : #running }
 MiServiceCallGraphVisualization >> buildMenuPage [
 
-	| option option1 options group option2 option3 option0 option4 option5 option6 option7 option8 |
+	| option option1 options group option2 option3 option0 option4 option5 option6 option7 option8 toggle |
 	menuPage := RSComposite new
 		            color: (Color fromHexString: 'F4F4F4');
 		            borderColor: (Color fromHexString: 'CCCCCC');
@@ -156,14 +187,7 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		          yourself.
 
 
-	option
-		when: RSMouseClick
-		do: [ :evt |
-			self colorLayerEntities.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
-		for: self.
+
 
 	option0 := RSComposite new
 		           model: 'Color transverse methods';
@@ -239,79 +263,115 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 	menuPage padding: 10.
 	self closeMenu.
 
+
+	toggle := [ :evt :opt :b1 :b2 |
+	          | active |
+	          active := opt propertyAt: #active.
+	          (active isNil or: [ active not ])
+		          ifTrue: [
+			          opt propertyAt: #active put: true.
+			          b1 value.
+			          evt shape children first
+				          form: (Smalltalk ui icons iconNamed: #checkboxSelected);
+				          signalUpdate ]
+		          ifFalse: [
+			          opt propertyAt: #active put: false.
+			          b2 value.
+			          evt shape children first
+				          form:
+					          (Smalltalk ui icons iconNamed: #checkboxUnselected);
+				          signalUpdate ] ].
+	option
+		when: RSMouseClick
+		do: [ :evt |
+			toggle
+				value: evt
+				value: option
+				value: [ self colorLayerEntities ]
+				value: [ self restoreShapeColor ] ]
+		for: self.
 	option0
 		when: RSMouseClick
 		do: [ :evt |
-			self colorTransverseEntities.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option0
+				value: [ self colorTransverseEntities ]
+				value: [ self restoreShapeColor ] ]
 		for: self.
 
 	option1
 		when: RSMouseClick
 		do: [ :evt |
-			self showDynamicInvocations.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option1
+				value: [ self showDynamicInvocations ]
+				value: [ self restoreLinesColor ] ]
 		for: self.
 	option2
 		when: RSMouseClick
 		do: [ :evt |
-			self showRecursiveMethods.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option2
+				value: [ self showRecursiveMethods ]
+				value: [ self restoreShapesBorder ] ]
 		for: self.
 	option3
 		when: RSMouseClick
 		do: [ :evt |
-			self showLeaves.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option3
+				value: [ self showLeaves ]
+				value: [ self restoreShapesSize ] ]
 		for: self.
 	option4
 		when: RSMouseClick
 		do: [ :evt |
-			self callsHeatMap.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option4
+				value: [ self callsHeatMap ]
+				value: [ self restoreLinesColor ] ]
 		for: self.
 	option5
 		when: RSMouseClick
 		do: [ :evt |
-			self showLayerViolations.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option5
+				value: [ self showLayerViolations ]
+				value: [ self restoreLinesColor ] ]
 		for: self.
 
 	option6
 		when: RSMouseClick
 		do: [ :evt |
-			self showLayerInterfaces.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option6
+				value: [ self showLayerInterfaces ]
+				value: [ self restoreShapeColor ] ]
 		for: self.
 	option7
 		when: RSMouseClick
 		do: [ :evt |
-			self showOverriddenMethods.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option7
+				value: [ self showOverriddenMethods ]
+				value: [ self restoreShapeColor ] ]
 		for: self.
 	option8
 		when: RSMouseClick
 		do: [ :evt |
-			self showBottlenecks.
-			evt shape children first
-				form: (Smalltalk ui icons iconNamed: #checkboxSelected);
-				signalUpdate ]
+			toggle
+				value: evt
+				value: option8
+				value: [ self showBottlenecks ]
+				value: [  ] ]
 		for: self
 ]
 
@@ -577,6 +637,34 @@ MiServiceCallGraphVisualization >> processMethodRateFor: process [
 ]
 
 { #category : #running }
+MiServiceCallGraphVisualization >> restoreLinesColor [
+
+	self canvas lines do: [ :l | l color: self baseLineColor ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> restoreShapeColor [
+
+	methodShapes do: [ :ms | ms color: self baseShapeColor ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> restoreShapesBorder [
+
+	methodShapes do: [ :s | s border: self baseShapeBorder ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> restoreShapesSize [
+
+	methodShapes do: [ :s | s size: self baseShapeSize ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
 MiServiceCallGraphVisualization >> run [
 
 	self canvas originTopLeft.
@@ -604,9 +692,12 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 
 	layerShapes do: [ :layer | shapes add: layer ] separatedBy: [
 		shapes add: (RSBox new
-				 extent: layerShapes anyOne extent x * 1.1 @ 1;
-				 color: Color transparent;
-				 border: (RSBorder new dashArray: #( 10 10 ));
+				 extent: layerShapes anyOne extent x * 1.1 @ 2;
+				 color: Color black translucent;
+				 border: (RSBorder new
+						  color: Color black;
+						  dashArray: #( 10 10 );
+						  yourself);
 				 yourself) ].
 
 	RSVerticalLineLayout new
@@ -625,7 +716,7 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 	self buildLines.
 
 	self addDynamicLinksFrom: self model entryPoint.
-	
+
 	job title: ''.
 	job currentValue: 100.
 	(Delay forDuration: (Duration milliSeconds: 200)) wait ]
@@ -638,20 +729,18 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 	| shape |
 	shape := RSCircle new
 		         model: anEntity;
-		         size: 30;
+		         size: self baseShapeSize;
 		         popupText: #mooseName;
 		         draggable;
+		         color: self baseShapeColor;
 		         when: RSMouseClick
 		         do: [ :evt | evt shape model inspect ]
 		         for: self;
-		         border: (RSBorder new
-				          width: 3;
-				          color: Color gray;
-				          yourself);
+		         border: self baseShapeBorder;
 		         yourself.
 	self addInteractionsOn: shape.
-	
-	
+
+
 	methodShapeDict at: anEntity put: shape.
 	methodShapes add: shape.
 
@@ -696,22 +785,23 @@ MiServiceCallGraphVisualization >> showBottlenecks [
 	s range: { 30. 300 }.
 	dynamicMethodRate associationsDo: [ :assoc |
 		| value shape |
-		shape := RSCircle new.
-		value := assoc value asInteger.
-		value := value = 0
-			         ifTrue: 1
-			         ifFalse: value.
+		methodShapeDict at: assoc key ifPresent: [
+			shape := RSCircle new.
+			value := assoc value asInteger.
+			value := value = 0
+				         ifTrue: 1
+				         ifFalse: value.
 
 
-		self canvas add: shape.
+			self canvas add: shape.
 
-		shape
-			size: (s scale: value);
-			color: Color red translucent;
-			borderWidth: 1;
-			position: (methodShapeDict at: assoc key) positionInCanvas;
-			pushBack;
-			signalUpdate ]
+			shape
+				size: (s scale: value);
+				color: Color red translucent;
+				borderWidth: 1;
+				position: (methodShapeDict at: assoc key) positionInCanvas;
+				pushBack;
+				signalUpdate ] ]
 ]
 
 { #category : #running }
@@ -749,7 +839,10 @@ MiServiceCallGraphVisualization >> showLayerViolations [
 	violations := {
 		              (#dao -> #service).
 		              (#dao -> #usecase).
-		              (#service -> #usecase) }.
+		              (#service -> #usecase).
+		              (#transverse -> #usecase).
+		              (#transverse -> #service).
+		              (#transverse -> #dao) }.
 	self canvas lines do: [ :line |
 		| link |
 		link := (self layerOf: line from model)
