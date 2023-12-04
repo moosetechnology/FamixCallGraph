@@ -71,6 +71,12 @@ MiServiceCallGraphVisualization >> baseLineColor [
 ]
 
 { #category : #running }
+MiServiceCallGraphVisualization >> baseLineWidth [
+
+	^ 1
+]
+
+{ #category : #running }
 MiServiceCallGraphVisualization >> baseShapeBorder [
 
 	^ RSBorder new
@@ -209,7 +215,7 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		           adjustToChildren;
 		           yourself.
 	option4 := RSComposite new
-		           model: 'Show nbInvocation heatmap';
+		           model: 'Show nbInvocation';
 		           adjustToChildren;
 		           yourself.
 
@@ -334,7 +340,10 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 				value: evt
 				value: option4
 				value: [ self callsHeatMap ]
-				value: [ self restoreLinesColor ] ]
+				value: [
+					self
+						restoreLinesColor;
+						restoreLinesWidth ] ]
 		for: self.
 	option5
 		when: RSMouseClick
@@ -392,18 +401,24 @@ MiServiceCallGraphVisualization >> callsHeatMap [
 	max := invocationDict values max.
 	min := invocationDict values min.
 	sc := OrderedCollection new.
-	min to: max by: max - min / 9 do: [ :i | sc add: i ].
+	"min to: max by: max - min / 9 do: [ :i | sc add: i ].
 
 	scale := NSScale linear domain: sc.
 	
-	scale range: RSColorPalette diverging rdylbu10 range.
-	
+	scale range: RSColorPalette diverging rdylbu10 range."
+	scale := NSScale ln domain: {
+			         min.
+			         max }.
+
+	scale range: { 2. 30 }.
+
 	invocationDict associationsDo: [ :assoc |
 		| line c |
 		line := assoc key.
 		c := scale scale: assoc value.
-		line color: c.
-		line model: assoc value ].
+		line width: c.
+		line color: ((Color fromHexString: '3498DB') alpha: 0.4).
+		line model: assoc value ]
 ]
 
 { #category : #running }
@@ -465,9 +480,7 @@ MiServiceCallGraphVisualization >> highlighIncomingLines [
 
 	^ RSHighlightable new
 		  withIncomingLines;
-		  highlightBorder: (RSBorder new
-				   width: 3;
-				   color: (Color fromHexString: 'C0392B'))
+		  highlightColor: (Color fromHexString: 'C0392B')
 ]
 
 { #category : #interactions }
@@ -496,9 +509,7 @@ MiServiceCallGraphVisualization >> hightlightOutgoingLines [
 
 	^ RSHighlightable new
 		  withOutgoingLines;
-		  highlightBorder: (RSBorder new
-				   width: 3;
-				   color: (Color fromHexString: '2980B9'))
+		  highlightColor: (Color fromHexString: '2980B9')
 ]
 
 { #category : #initialization }
@@ -589,7 +600,7 @@ MiServiceCallGraphVisualization >> layerShapes [
 				                                shape }.
 		               RSVerticalLineLayout on: labelAndShape.
 		               labeledShape := labelAndShape asShape.
-		               label translateBy: -300 @ 0.
+		              " label translateBy: -300 @ 0."
 		               labeledShape ].
 	^ layerShapes
 ]
@@ -640,6 +651,13 @@ MiServiceCallGraphVisualization >> processMethodRateFor: process [
 MiServiceCallGraphVisualization >> restoreLinesColor [
 
 	self canvas lines do: [ :l | l color: self baseLineColor ].
+	self canvas signalUpdate
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> restoreLinesWidth [
+
+	self canvas lines do: [ :l | l width: self baseLineWidth ].
 	self canvas signalUpdate
 ]
 
@@ -733,8 +751,11 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 		         popupText: #mooseName;
 		         draggable;
 		         color: self baseShapeColor;
-		         when: RSMouseClick
+		         when: RSMouseLeftClick
 		         do: [ :evt | evt shape model inspect ]
+		         for: self;
+		         when: RSMouseRightClick
+		         do: [ :evt | self zoomToFitConnectedShapes: evt shape  ]
 		         for: self;
 		         border: self baseShapeBorder;
 		         yourself.
@@ -916,4 +937,23 @@ MiServiceCallGraphVisualization >> unhighlightOtherNodes [
 			highlightable restore: evt shape selector: #border ]
 		for: self.
 	^ highlightable
+]
+
+{ #category : #running }
+MiServiceCallGraphVisualization >> zoomToFitConnectedShapes: shape [
+
+	| connectedShapes encompassingRectangle |
+	encompassingRectangle := nil.
+	connectedShapes := shape incomingShapes , shape outgoingShapes.
+
+	connectedShapes do: [ :s |
+		encompassingRectangle
+			ifNil: [ encompassingRectangle := s globalEncompassingRectangle ]
+			ifNotNil: [
+				encompassingRectangle := encompassingRectangle merge:
+					                         s globalEncompassingRectangle ] ].
+	encompassingRectangle traceCr.
+	self canvas camera
+		zoomToFit: self canvas extent * 0.9
+		rectangle: encompassingRectangle
 ]
