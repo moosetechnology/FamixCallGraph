@@ -239,14 +239,10 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		           yourself.
 
 	group := RSGroup withAll: {
-			         option.
-			         option0.
 			         option1.
 			         option2.
 			         option3.
 			         option4.
-			         option5.
-			         option6.
 			         option7.
 			         option8 }.
 
@@ -595,12 +591,10 @@ MiServiceCallGraphVisualization >> layerShapes [
 				                         assoc key asString asUppercase)
 			                        fontSize: 50;
 			                        yourself.
-		               labelAndShape := RSGroup withAll: {
-				                                label.
-				                                shape }.
+		               labelAndShape := RSGroup withAll: { shape }.
 		               RSVerticalLineLayout on: labelAndShape.
 		               labeledShape := labelAndShape asShape.
-		              " label translateBy: -300 @ 0."
+		               " label translateBy: -300 @ 0."
 		               labeledShape ].
 	^ layerShapes
 ]

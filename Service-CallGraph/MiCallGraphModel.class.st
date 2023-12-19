@@ -172,7 +172,7 @@ MiCallGraphModel >> initialize [
 { #category : #utilities }
 MiCallGraphModel >> layerOf: anEntity [
 
-	| parentPackages |
+	"| parentPackages |
 	parentPackages := anEntity allAtScope: FamixTPackage.
 	(parentPackages anySatisfy: [ :p | p name = 'usecase' ]) ifTrue: [ 
 		^ #usecase ].
@@ -181,15 +181,15 @@ MiCallGraphModel >> layerOf: anEntity [
 	(parentPackages anySatisfy: [ :p | p name = 'dao' ]) ifTrue: [ 
 		^ #dao ].
 	(parentPackages anySatisfy: [ :p | p name = 'transverse' ]) ifTrue: [ 
-		^ #transverse ].
+		^ #transverse ]."
 	^ #other
 ]
 
 { #category : #computing }
 MiCallGraphModel >> layeredLeveledCallGraph [
 
-	| adjList  visited toVisit layers layersDict otherDict layerOfEntity |
-	layers := { #usecase. #service. #dao } asOrderedCollection.
+	| adjList visited toVisit layers layersDict otherDict layerOfEntity |
+	layers := { #other } asOrderedCollection.
 	otherDict := Dictionary new.
 	layersDict := (layers collect: [ :l | l -> OrderedCollection new ])
 		              asDictionary.
@@ -200,21 +200,21 @@ MiCallGraphModel >> layeredLeveledCallGraph [
 	toVisit add: entity.
 	layerOfEntity := self layerOf: entity.
 	otherDict at: entity put: layerOfEntity.
-	layers do: [ :l | 
+	layers do: [ :l |
 		| c |
 		c := OrderedCollection new.
 		l = layerOfEntity ifTrue: [ c add: entity ].
 		layersDict at: l ifPresent: [ :m | m add: c ] ].
 
-	[ toVisit isEmpty ] whileFalse: [ 
+	[ toVisit isEmpty ] whileFalse: [
 		| newToVisit ld |
 		ld := (layers collect: [ :l | l -> OrderedCollection new ])
 			      asDictionary.
 		newToVisit := Set new.
 		visited addAll: toVisit.
-		toVisit do: [ :m | 
-			(adjList at: m) do: [ :m1 | 
-				(visited includes: m1) ifFalse: [ 
+		toVisit do: [ :m |
+			(adjList at: m) do: [ :m1 |
+				(visited includes: m1) ifFalse: [
 					newToVisit add: m1.
 					ld
 						at: (self layerOf: m1)
@@ -224,9 +224,9 @@ MiCallGraphModel >> layeredLeveledCallGraph [
 						 at: (self layerOf: m1)
 						 ifAbsent: [ ld at: (otherDict at: m1) ]) add: m1 ] ] ].
 		toVisit := newToVisit.
-		ld associationsDo: [ :assoc | 
+		ld associationsDo: [ :assoc |
 			layersDict at: assoc key ifPresent: [ :col | col add: assoc value ] ] ].
-	^ layers collect:  [ :l | l -> (layersDict at: l) ]
+	^ layers collect: [ :l | l -> (layersDict at: l) ]
 ]
 
 { #category : #computing }
