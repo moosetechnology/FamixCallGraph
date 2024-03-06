@@ -22,5 +22,5 @@ Class {
 		'classF',
 		'mF'
 	],
-	#category : #'Service-CallGraph-Tests'
+	#category : #'Service-Extractor-Tests'
 }
