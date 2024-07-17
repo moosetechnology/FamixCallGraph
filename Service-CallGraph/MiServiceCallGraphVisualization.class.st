@@ -112,7 +112,10 @@ MiServiceCallGraphVisualization >> buildLines [
 		color: self baseLineColor;
 		canvas: self canvas;
 		shapes: methodShapes;
-		connectToAll: [ :model | adjList at: model ].
+		connectToAll: [ :model |
+			(adjList includesKey: model)
+				ifTrue: [ adjList at: model ]
+				ifFalse: [ {  } ] ].
 	self canvas lines @ RSPopup
 ]
 
@@ -727,7 +730,7 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 
 	self buildLines.
 
-	self addDynamicLinksFrom: self model entryPoint.
+	"self addDynamicLinksFrom: self model entryPoint."
 
 	job title: ''.
 	job currentValue: 100.

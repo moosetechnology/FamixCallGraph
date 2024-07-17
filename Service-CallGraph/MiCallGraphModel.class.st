@@ -35,22 +35,16 @@ MiCallGraphModel >> addFamixMethod: method for: class [
 { #category : #computing }
 MiCallGraphModel >> callGraph [
 
-	^ callGraph ifNil: [ callGraph := entity callGraph ]
+	^ callGraph ifNil: [
+		  callGraph := JavaCallGraphModel new
+			               entryMethod: entity;
+			               cha ]
 ]
 
 { #category : #computing }
 MiCallGraphModel >> computeCallGraph [
 
-	| adjacencyList nodes |
-	adjacencyList := Dictionary new.
-	nodes := self callGraph.
-	nodes keysDo: [ :m | 
-		adjacencyList
-			at: m
-			put:
-				(((m queryOutgoing: FamixTInvocation) flatCollect: #allTargets) 
-					 reject: #isStub) asSet asOrderedCollection ].
-	^ adjacencyList
+	^ self callGraph
 ]
 
 { #category : #accessing }
@@ -158,15 +152,15 @@ MiCallGraphModel >> famixEntityFromDict [
 MiCallGraphModel >> initialize [
 
 	super initialize.
-	profilModel := FamixJVMProfilerImporter new
+	"profilModel := FamixJVMProfilerImporter new
 		               extractor: (FamixJVMProfilerExtractor new
 				                xmlFile:
 					                '/Users/slabsar/Downloads/export_full_tiers_no_ms_visualVM-09112023.xml';
 				                yourself);
 		               loader: FamixJVMProfilerLoader new;
-		               import.
+		               import."
 
-	entryPoint := profilModel allModelEntities third
+	"entryPoint := profilModel allModelEntities third"
 ]
 
 { #category : #utilities }
@@ -213,16 +207,17 @@ MiCallGraphModel >> layeredLeveledCallGraph [
 		newToVisit := Set new.
 		visited addAll: toVisit.
 		toVisit do: [ :m |
-			(adjList at: m) do: [ :m1 |
-				(visited includes: m1) ifFalse: [
-					newToVisit add: m1.
-					ld
-						at: (self layerOf: m1)
-						ifPresent: [ :l | otherDict at: m1 put: (self layerOf: m1) ]
-						ifAbsent: [ otherDict at: m1 put: (otherDict at: m) ].
-					(ld
-						 at: (self layerOf: m1)
-						 ifAbsent: [ ld at: (otherDict at: m1) ]) add: m1 ] ] ].
+			(adjList includesKey: m) ifTrue: [
+				(adjList at: m) do: [ :m1 |
+					(visited includes: m1) ifFalse: [
+						newToVisit add: m1.
+						ld
+							at: (self layerOf: m1)
+							ifPresent: [ :l | otherDict at: m1 put: (self layerOf: m1) ]
+							ifAbsent: [ otherDict at: m1 put: (otherDict at: m) ].
+						(ld
+							 at: (self layerOf: m1)
+							 ifAbsent: [ ld at: (otherDict at: m1) ]) add: m1 ] ] ] ].
 		toVisit := newToVisit.
 		ld associationsDo: [ :assoc |
 			layersDict at: assoc key ifPresent: [ :col | col add: assoc value ] ] ].
