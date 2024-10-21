@@ -1,6 +1,6 @@
 Class {
-	#name : #MiServiceCallGraphVisualization,
-	#superclass : #MiAbstractVisualization,
+	#name : 'MiServiceCallGraphVisualization',
+	#superclass : 'MiAbstractVisualization',
 	#instVars : [
 		'methodShapes',
 		'colorDictionary',
@@ -10,10 +10,11 @@ Class {
 		'menuOpen',
 		'dynamicMethodRate'
 	],
-	#category : #'Service-CallGraph'
+	#category : 'Service-CallGraph',
+	#package : 'Service-CallGraph'
 }
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 
 	| entry subs methodRate |
@@ -54,7 +55,7 @@ MiServiceCallGraphVisualization >> addDynamicLinksFrom: process [
 						for: self ] ] ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> addInteractionsOn: aShape [
 
 	aShape
@@ -64,19 +65,19 @@ MiServiceCallGraphVisualization >> addInteractionsOn: aShape [
 		@ self unhighlightOtherNodes
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> baseLineColor [
 
 	^ Color gray translucent
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> baseLineWidth [
 
 	^ 1
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> baseShapeBorder [
 
 	^ RSBorder new
@@ -85,19 +86,27 @@ MiServiceCallGraphVisualization >> baseShapeBorder [
 		  yourself
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> baseShapeColor [
 
 	^ Color lightGray
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> baseShapeSize [
 
 	^ 30
 ]
 
-{ #category : #running }
+{ #category : 'running' }
+MiServiceCallGraphVisualization >> buildInCanvas: aCanvas [
+
+	aCanvas originTopLeft.
+	self runAsRoassalJobInCanvas: aCanvas.
+	self buildMenuInCanvas: aCanvas.
+]
+
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> buildLines [
 
 	| adjList |
@@ -119,15 +128,8 @@ MiServiceCallGraphVisualization >> buildLines [
 	self canvas lines @ RSPopup
 ]
 
-{ #category : #running }
-MiServiceCallGraphVisualization >> buildMenu [
-
-	self buildMenuPage.
-	self buildMenuButton
-]
-
-{ #category : #running }
-MiServiceCallGraphVisualization >> buildMenuButton [
+{ #category : 'running' }
+MiServiceCallGraphVisualization >> buildMenuButtonInCanvas: aCanvas [
 
 	| optionLabel optionShapes arrow background |
 	optionLabel := (RSLabel text: 'Options')
@@ -161,7 +163,7 @@ MiServiceCallGraphVisualization >> buildMenuButton [
 	optionButton add: background.
 	optionButton propertyAt: #background put: background.
 
-	self canvas add: optionButton.
+	aCanvas add: optionButton.
 	background pushBack.
 	optionButton setAsFixed.
 	optionButton translateTopLeftTo: 40 @ -5.
@@ -176,8 +178,15 @@ MiServiceCallGraphVisualization >> buildMenuButton [
 		for: self
 ]
 
-{ #category : #running }
-MiServiceCallGraphVisualization >> buildMenuPage [
+{ #category : 'running' }
+MiServiceCallGraphVisualization >> buildMenuInCanvas: aCanvas [
+
+	self buildMenuPageInCanvas: aCanvas.
+	self buildMenuButtonInCanvas: aCanvas
+]
+
+{ #category : 'running' }
+MiServiceCallGraphVisualization >> buildMenuPageInCanvas: aCanvas [
 
 	| option option1 options group option2 option3 option0 option4 option5 option6 option7 option8 toggle |
 	menuPage := RSComposite new
@@ -185,7 +194,7 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		            borderColor: (Color fromHexString: 'CCCCCC');
 		            yourself.
 
-	self canvas add: menuPage.
+	aCanvas add: menuPage.
 	menuPage setAsFixed.
 
 
@@ -383,7 +392,7 @@ MiServiceCallGraphVisualization >> buildMenuPage [
 		for: self
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> callsHeatMap [
 
 	| invocationDict scale max min sc |
@@ -420,7 +429,7 @@ MiServiceCallGraphVisualization >> callsHeatMap [
 		line model: assoc value ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> closeMenu [
 
 	menuOpen := false.
@@ -432,19 +441,19 @@ MiServiceCallGraphVisualization >> closeMenu [
 		optionButton signalUpdate ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> colorFor: anEntity [
 
 	^ self colorForLayer: (self layerOf: anEntity)
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> colorForLayer: symbolLayer [
 
 	^ colorDictionary at: symbolLayer ifAbsent: [ Color gray ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> colorLayerEntities [
 
 	methodShapes do: [ :s |
@@ -454,7 +463,7 @@ MiServiceCallGraphVisualization >> colorLayerEntities [
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> colorTransverseEntities [
 
 	methodShapes do: [ :s |
@@ -466,7 +475,7 @@ MiServiceCallGraphVisualization >> colorTransverseEntities [
 				signalUpdate ] ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> emptyClassGroup [
 
 	^ RSComposite new
@@ -474,7 +483,7 @@ MiServiceCallGraphVisualization >> emptyClassGroup [
 		  yourself
 ]
 
-{ #category : #interactions }
+{ #category : 'interactions' }
 MiServiceCallGraphVisualization >> highlighIncomingLines [
 
 	^ RSHighlightable new
@@ -482,7 +491,7 @@ MiServiceCallGraphVisualization >> highlighIncomingLines [
 		  highlightColor: (Color fromHexString: 'C0392B')
 ]
 
-{ #category : #interactions }
+{ #category : 'interactions' }
 MiServiceCallGraphVisualization >> highlightSubGraph [
 
 	| highlightable |
@@ -503,7 +512,7 @@ MiServiceCallGraphVisualization >> highlightSubGraph [
 	^ highlightable
 ]
 
-{ #category : #interactions }
+{ #category : 'interactions' }
 MiServiceCallGraphVisualization >> hightlightOutgoingLines [
 
 	^ RSHighlightable new
@@ -511,7 +520,7 @@ MiServiceCallGraphVisualization >> hightlightOutgoingLines [
 		  highlightColor: (Color fromHexString: '2980B9')
 ]
 
-{ #category : #initialization }
+{ #category : 'initialization' }
 MiServiceCallGraphVisualization >> initialize [
 
 	super initialize.
@@ -522,7 +531,7 @@ MiServiceCallGraphVisualization >> initialize [
 	dynamicMethodRate := Dictionary new
 ]
 
-{ #category : #initialization }
+{ #category : 'initialization' }
 MiServiceCallGraphVisualization >> initializeColorDictionary [
 
 	colorDictionary := Dictionary new
@@ -536,7 +545,7 @@ MiServiceCallGraphVisualization >> initializeColorDictionary [
 		                   yourself
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> layerOf: anEntity [
 
 	| parentPackages |
@@ -552,7 +561,7 @@ MiServiceCallGraphVisualization >> layerOf: anEntity [
 	^ #other
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> layerShapes [
 
 	| layerShapes labels layers |
@@ -602,13 +611,13 @@ MiServiceCallGraphVisualization >> layerShapes [
 	^ layerShapes
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> model [ 
 
 	^ self owner model
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> openMenu [
 
 	menuOpen := true.
@@ -620,7 +629,7 @@ MiServiceCallGraphVisualization >> openMenu [
 		optionButton signalUpdate ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> processMethodRateFor: process [
 
 	| time integer sum |
@@ -644,53 +653,43 @@ MiServiceCallGraphVisualization >> processMethodRateFor: process [
 	  / (integer value: process nbInvocations) / sum
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> restoreLinesColor [
 
 	self canvas lines do: [ :l | l color: self baseLineColor ].
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> restoreLinesWidth [
 
 	self canvas lines do: [ :l | l width: self baseLineWidth ].
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> restoreShapeColor [
 
 	methodShapes do: [ :ms | ms color: self baseShapeColor ].
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> restoreShapesBorder [
 
 	methodShapes do: [ :s | s border: self baseShapeBorder ].
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> restoreShapesSize [
 
 	methodShapes do: [ :s | s size: self baseShapeSize ].
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
-MiServiceCallGraphVisualization >> run [
-
-	self canvas originTopLeft.
-	self runAsRoassalJob.
-	self buildMenu.
-	
-	
-]
-
-{ #category : #running }
-MiServiceCallGraphVisualization >> runAsRoassalJob [
+{ #category : 'running' }
+MiServiceCallGraphVisualization >> runAsRoassalJobInCanvas: aCanvas [
 
 	[ :job |
 	| layerShapes shapes |
@@ -722,8 +721,8 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 	job title: 'Rendering shapes'.
 	job currentValue: 50.
 
-	self canvas addAll: shapes.
-	self canvas useRTree.
+	aCanvas addAll: shapes.
+	aCanvas useRTree.
 
 	job title: 'Rendering lines'.
 	job currentValue: 70.
@@ -735,10 +734,10 @@ MiServiceCallGraphVisualization >> runAsRoassalJob [
 	job title: ''.
 	job currentValue: 100.
 	(Delay forDuration: (Duration milliSeconds: 200)) wait ]
-		runAsRoassalJobOn: self canvas
+		runAsRoassalJobOn: aCanvas useRTree.
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> shapeFor: anEntity [
 
 	| shape |
@@ -765,7 +764,7 @@ MiServiceCallGraphVisualization >> shapeFor: anEntity [
 	^ shape
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 
 	| shapes shape |
@@ -785,7 +784,7 @@ MiServiceCallGraphVisualization >> shapeFromClassGroup: aGroup [
 	^ shape
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showBottlenecks [
 
 	| rates min max s |
@@ -822,7 +821,7 @@ MiServiceCallGraphVisualization >> showBottlenecks [
 				signalUpdate ] ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showDynamicInvocations [
 
 	self canvas lines do: [ :line |
@@ -833,7 +832,7 @@ MiServiceCallGraphVisualization >> showDynamicInvocations [
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showLayerInterfaces [
 
 	| interfaces |
@@ -850,7 +849,7 @@ MiServiceCallGraphVisualization >> showLayerInterfaces [
 	self canvas signalUpdate
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showLayerViolations [
 
 	| violations |
@@ -871,7 +870,7 @@ MiServiceCallGraphVisualization >> showLayerViolations [
 				signalUpdate ] ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showLeaves [
 
 	methodShapes do: [ :s |
@@ -882,7 +881,7 @@ MiServiceCallGraphVisualization >> showLeaves [
 			s signalUpdate ] ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showOverriddenMethods [
 
 	methodShapeDict associationsDo: [ :assoc |
@@ -892,7 +891,7 @@ MiServiceCallGraphVisualization >> showOverriddenMethods [
 				signalUpdate ] ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> showRecursiveMethods [
 
 	methodShapes do: [ :s |
@@ -903,7 +902,7 @@ MiServiceCallGraphVisualization >> showRecursiveMethods [
 		s signalUpdate ]
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> toggleMenu [
 
 	menuOpen
@@ -911,7 +910,7 @@ MiServiceCallGraphVisualization >> toggleMenu [
 		ifFalse: [ self openMenu ]
 ]
 
-{ #category : #interactions }
+{ #category : 'interactions' }
 MiServiceCallGraphVisualization >> unhighlightOtherNodes [
 
 	| highlightable |
@@ -936,7 +935,7 @@ MiServiceCallGraphVisualization >> unhighlightOtherNodes [
 	^ highlightable
 ]
 
-{ #category : #running }
+{ #category : 'running' }
 MiServiceCallGraphVisualization >> zoomToFitConnectedShapes: shape [
 
 	| connectedShapes encompassingRectangle |

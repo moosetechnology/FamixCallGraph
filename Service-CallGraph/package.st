@@ -1,1 +1,1 @@
-Package { #name : #'Service-CallGraph' }
+Package { #name : 'Service-CallGraph' }

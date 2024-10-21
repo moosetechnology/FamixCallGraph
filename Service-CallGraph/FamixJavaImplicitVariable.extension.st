@@ -1,6 +1,6 @@
-Extension { #name : #FamixJavaImplicitVariable }
+Extension { #name : 'FamixJavaImplicitVariable' }
 
-{ #category : #'*Service-CallGraph' }
+{ #category : '*Service-CallGraph' }
 FamixJavaImplicitVariable >> hasObjectType [
 	
 	^ true

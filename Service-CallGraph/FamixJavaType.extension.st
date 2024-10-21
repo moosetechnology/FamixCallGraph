@@ -1,6 +1,6 @@
-Extension { #name : #FamixJavaType }
+Extension { #name : 'FamixJavaType' }
 
-{ #category : #'*Service-CallGraph' }
+{ #category : '*Service-CallGraph' }
 FamixJavaType >> overrides: method [
 
 	^ self methods

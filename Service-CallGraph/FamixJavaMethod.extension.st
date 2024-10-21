@@ -1,12 +1,12 @@
-Extension { #name : #FamixJavaMethod }
+Extension { #name : 'FamixJavaMethod' }
 
-{ #category : #'*Service-CallGraph' }
+{ #category : '*Service-CallGraph' }
 FamixJavaMethod >> isRecursive [
 
 	^ (self outgoingInvocations flatCollect: #allTargets) includes: self
 ]
 
-{ #category : #'*Service-CallGraph' }
+{ #category : '*Service-CallGraph' }
 FamixJavaMethod >> mooseNameOn: stream parentType: aClass [
 
 	aClass mooseNameOn: stream.
