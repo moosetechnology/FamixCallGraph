@@ -3,8 +3,8 @@ I am the model for the call graph browser.
 I am responsible to compute call graph from a famix entity and store different related values.
 "
 Class {
-	#name : #MiCallGraphModel,
-	#superclass : #MiAbstractModel,
+	#name : 'MiCallGraphModel',
+	#superclass : 'MiAbstractModel',
 	#instVars : [
 		'entity',
 		'profilModel',
@@ -12,10 +12,11 @@ Class {
 		'callGraph',
 		'famixEntityFromDict'
 	],
-	#category : #'Service-CallGraph'
+	#category : 'Service-CallGraph',
+	#package : 'Service-CallGraph'
 }
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> addFamixMethod: method for: class [
 
 	| actualMethod mooseName |
@@ -32,7 +33,7 @@ MiCallGraphModel >> addFamixMethod: method for: class [
 		self addFamixMethod: actualMethod for: c ]
 ]
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> callGraph [
 
 	^ callGraph ifNil: [
@@ -41,43 +42,43 @@ MiCallGraphModel >> callGraph [
 			               cha ]
 ]
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> computeCallGraph [
 
 	^ self callGraph
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> entities [
 
 	^ nil
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> entity [
 
 	^ entity
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> entity: anObject [
 
 	entity := anObject
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> entryPoint [
 
 	^ entryPoint
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> entryPoint: anObject [
 
 	entryPoint := anObject
 ]
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> famixEntityFrom: process [
 
 	| famixEntity candidates processSignature processIdentifier mooseModel openPIndex closePIndex parameterString parameters newCandidates |
@@ -131,7 +132,7 @@ MiCallGraphModel >> famixEntityFrom: process [
 	^ famixEntity
 ]
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> famixEntityFromDict [
 
 	| addFamixEntity |
@@ -148,7 +149,7 @@ MiCallGraphModel >> famixEntityFromDict [
 			 self addFamixMethod: m for: m parentType] ]
 ]
 
-{ #category : #initialization }
+{ #category : 'initialization' }
 MiCallGraphModel >> initialize [
 
 	super initialize.
@@ -163,7 +164,7 @@ MiCallGraphModel >> initialize [
 	"entryPoint := profilModel allModelEntities third"
 ]
 
-{ #category : #utilities }
+{ #category : 'utilities' }
 MiCallGraphModel >> layerOf: anEntity [
 
 	"| parentPackages |
@@ -179,7 +180,7 @@ MiCallGraphModel >> layerOf: anEntity [
 	^ #other
 ]
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> layeredLeveledCallGraph [
 
 	| adjList visited toVisit layers layersDict otherDict layerOfEntity |
@@ -224,7 +225,7 @@ MiCallGraphModel >> layeredLeveledCallGraph [
 	^ layers collect: [ :l | l -> (layersDict at: l) ]
 ]
 
-{ #category : #computing }
+{ #category : 'computing' }
 MiCallGraphModel >> leveledCallGraph [
 
 	| adjList lvlcg visited toVisit |
@@ -247,13 +248,13 @@ MiCallGraphModel >> leveledCallGraph [
 	^ lvlcg
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> profilModel [
 
 	^ profilModel
 ]
 
-{ #category : #accessing }
+{ #category : 'accessing' }
 MiCallGraphModel >> profilModel: anObject [
 
 	profilModel := anObject
