@@ -1,12 +1,12 @@
 Class {
-	#name : 'BaselineOfCallGraph',
+	#name : 'BaselineOfFamixCallGraph',
 	#superclass : 'BaselineOf',
 	#category : 'BaselineOfCallGraph',
 	#package : 'BaselineOfCallGraph'
 }
 
 { #category : 'baselines' }
-BaselineOfCallGraph >> baseline: spec [
+BaselineOfFamixCallGraph >> baseline: spec [
 	<baseline>
 	
 	spec for: #common do: [ 
@@ -17,7 +17,7 @@ BaselineOfCallGraph >> baseline: spec [
 ]
 
 { #category : 'baselines' }
-BaselineOfCallGraph >> fastJava: spec [
+BaselineOfFamixCallGraph >> fastJava: spec [
 
 	spec
 		baseline: 'FASTJava'
