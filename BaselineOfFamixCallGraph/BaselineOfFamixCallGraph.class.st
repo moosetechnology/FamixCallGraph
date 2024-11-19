@@ -1,8 +1,8 @@
 Class {
 	#name : 'BaselineOfFamixCallGraph',
 	#superclass : 'BaselineOf',
-	#category : 'BaselineOfCallGraph',
-	#package : 'BaselineOfCallGraph'
+	#category : 'BaselineOfFamixCallGraph',
+	#package : 'BaselineOfFamixCallGraph'
 }
 
 { #category : 'baselines' }
