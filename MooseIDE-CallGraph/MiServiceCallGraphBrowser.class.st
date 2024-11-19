@@ -6,8 +6,9 @@ The call graph browser.
 Class {
 	#name : 'MiServiceCallGraphBrowser',
 	#superclass : 'MiAbstractVisualizationBrowser',
-	#category : 'Service-CallGraph',
-	#package : 'Service-CallGraph'
+	#category : 'MooseIDE-CallGraph-Browser',
+	#package : 'MooseIDE-CallGraph',
+	#tag : 'Browser'
 }
 
 { #category : 'accessing' }

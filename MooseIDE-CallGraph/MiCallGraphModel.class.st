@@ -12,8 +12,9 @@ Class {
 		'callGraph',
 		'famixEntityFromDict'
 	],
-	#category : 'Service-CallGraph',
-	#package : 'Service-CallGraph'
+	#category : 'MooseIDE-CallGraph-Browser',
+	#package : 'MooseIDE-CallGraph',
+	#tag : 'Browser'
 }
 
 { #category : 'computing' }

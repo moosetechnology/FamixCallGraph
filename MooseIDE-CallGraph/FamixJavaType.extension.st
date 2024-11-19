@@ -1,6 +1,6 @@
 Extension { #name : 'FamixJavaType' }
 
-{ #category : '*Service-CallGraph' }
+{ #category : '*MooseIDE-CallGraph' }
 FamixJavaType >> overrides: method [
 
 	^ self methods
