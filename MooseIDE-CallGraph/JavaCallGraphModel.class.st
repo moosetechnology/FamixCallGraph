@@ -103,7 +103,6 @@ JavaCallGraphModel >> buildtypeGraph [
 
 	typeGraph := Dictionary new.
 	nodesDict := Dictionary new.
-	1halt.
 	"Create nodes for the type graph."
 	self addGraphNodes.
 
@@ -199,9 +198,6 @@ JavaCallGraphModel >> cha [
 	[ worklist isEmpty ] whileFalse: [
 		| calls workMethod |
 		workMethod := worklist removeLast.
-		self debugCaca: {
-				workMethod.
-				worklist }.
 		calls := workMethod outgoingInvocations.
 		calls do: [ :call |
 			| overridingMethods method receiver nilReceiverInFAST |
@@ -270,8 +266,7 @@ JavaCallGraphModel >> cha [
 												        ifNotEmpty: [ call sourceAnchor startPos ].
 
 											invocation := fastInvocations detect: [ :i |
-												              i startPos >= (sPos - 2) and: [
-													              i startPos <= (sPos + 2) ] ] ]
+												              i startPos between: sPos - 2 and: sPos + 2 ] ]
 										ifFalse: [ invocation := invocations anyOne ].
 
 									invocation receiver ifNil: [ nilReceiverInFAST := true ].
@@ -357,9 +352,7 @@ JavaCallGraphModel >> cha [
 															      = invocation arguments size or: [
 																      (self numberOfArguments: c candidates first)
 																      = invocation arguments size ] ] ] ].
-												receiver := cs first candidates first parentType.
-
-												1 haltIf: [ receiver name ~= 'String' or: [ cs size > 1 ] ] ] ] ] ].
+												receiver := cs first candidates first parentType ] ] ] ].
 
 					overridingMethods := OrderedCollection new.
 
@@ -381,7 +374,7 @@ JavaCallGraphModel >> cha [
 						| rcv |
 						rcv := self receiverType: receiver.
 						rcv ifNil: [ rcv := method parentType ].
-						rcv ifNil: [ 1 halt ].
+						rcv ifNil: [  ].
 						rcv isParameterType ifTrue: [ "If parameter type has upper bounds, we can use the class or/and interface(s), for now no bounds in famix :("
 							rcv := method parentType ].
 
@@ -398,8 +391,6 @@ JavaCallGraphModel >> cha [
 					"1 haltIf: [ overridingMethods size > 200 ]."
 					method isStub ifTrue: [ stubMethods add: method ].
 
-					(method name , '(' , overridingMethods size asString , ')')
-						traceCr.
 					overridingMethods do: [ :oMeth |
 						self addLinkFrom: workMethod to: oMeth.
 						((callGraph includesKey: oMeth) or: [
@@ -408,7 +399,6 @@ JavaCallGraphModel >> cha [
 							visited at: oMeth put: true ] ] ]
 				ifEmpty: [ 'No call candidate' traceCr ] ] ].
 	classes := methods collectAsSet: [ :m | m parentType ].
-	'Done' traceCr.
 	^ callGraph
 ]
 
@@ -536,8 +526,9 @@ JavaCallGraphModel >> lookForBoundsOfParameterType: parameterType [
 	tp := (fast allWithType: FASTJavaTypeParameterExpression) detect: [
 		      :t | t name = parameterType name ].
 	className := tp types first typeName name.
-	parameterType mooseModel allTypes select: [ :c | c isPrimitiveType not and: [c isConcreteEntity not and: [ c name = className ]] ].
-	1 halt
+	parameterType mooseModel allTypes select: [ :c |
+		c isPrimitiveType not and: [
+			c isConcreteEntity not and: [ c name = className ] ] ]
 ]
 
 { #category : 'util' }
