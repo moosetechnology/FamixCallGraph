@@ -67,6 +67,23 @@ JavaCallGraphModel >> allPathsFrom: start to: end [
 		  currentPath: OrderedCollection new
 ]
 
+{ #category : 'initialization' }
+JavaCallGraphModel >> buildFASTFor: aMethod [
+
+	| fast |
+	[ fast := (aMethod getFASTModel) allFASTJavaMethodEntity first ]
+		on: Error
+		do: [
+			| f code meth |
+			code := (aMethod sourceAnchor fileName asFileReference
+				         readStreamEncoded: aMethod sourceAnchor encoding) upToEnd.
+			f := JavaSmaCCProgramNodeImporterVisitor new parseCodeString: code.
+			fast := (f allFASTJavaMethodEntity select: [ :m |
+				         m name = aMethod name and: [
+					         aMethod parameters size = m parameters size ] ]) first ].
+	^ fast
+]
+
 { #category : 'accessing' }
 JavaCallGraphModel >> buildNodeFor: v [
 
@@ -191,120 +208,147 @@ JavaCallGraphModel >> cha [
 
 
 
-					(receiver isNil and: [ method isConstructor not ]) ifTrue: [ "Receiver is nil, big problems start here..."
-						| fast fastInvocations invocations invocation |
-						1 haltIf: [ method mooseID = 1847135 ].
-						method isClassSide
-							ifTrue: [ "It means that the method is called on a class but the information is missing in the model."
-								| tName |
-								fast := JavaSmaCCProgramNodeImporterVisitor
-									        parseCodeMethodString: workMethod sourceText.
-								"We have to find the receiver of that call using fast."
+					(receiver isNil and: [
+						 method isConstructor not and: [ method parentType notNil ] ])
+						ifTrue: [ "Receiver is nil, big problems start here..."
+							| fast fastInvocations invocations invocation |
+							method isClassSide
+								ifTrue: [ "It means that the method is called on a class but the information is missing in the model."
+									| tName |
+									fast := self buildFASTFor: workMethod.
+									"We have to find the receiver of that call using fast."
 
-								fastInvocations := fast allWithType: FASTJavaMethodInvocation.
-								invocations := fastInvocations select: [ :i |
-									               i name = method name and: [
-										               i arguments size = method parameters size
-											               and: [
-											               i receiver isNil or: [
-												               i receiver isIdentifier ] ] ] ].
-								(invocations isEmpty and: [ method isStub ]) ifTrue: [
+									fastInvocations := fast allToScope: FASTJavaMethodInvocation.
 									invocations := fastInvocations select: [ :i |
-										               i name = method name ] ].
-								invocation := invocations first.
-								tName := invocation receiver name.
-								method parentType name = tName
-									ifTrue: [ receiver := method parentType ]
-									ifFalse: [
-										receiver := method parentType subclassHierarchy detect: [ :c |
-											            c name = tName ] ] ]
-							ifFalse: [
-								fast := JavaSmaCCProgramNodeImporterVisitor
-									        parseCodeMethodString: workMethod sourceText.
-								"We have to find the receiver of that call using fast."
+										               i name = method name and: [
+											               i arguments size = method parameters size
+												               and: [
+												               i receiver isNil or: [
+													               i receiver isIdentifier ] ] ] ].
+									(invocations isEmpty and: [ method isStub ]) ifTrue: [
+										invocations := fastInvocations select: [ :i |
+											               i name = method name ] ].
+									(invocations size > 1 and: [ call sourceAnchor notNil ])
+										ifTrue: [
+											| sPos ePos |
+											sPos := call sourceAnchor startPos
+											        - workMethod sourceAnchor startPos + 1.
+											ePos := call sourceAnchor endPos
+											        - workMethod sourceAnchor startPos + 1.
+											invocation := invocations detect: [ :i | i startPos = sPos ] ]
+										ifFalse: [ invocation := invocations anyOne ].
+									tName := invocation receiver name.
+									method parentType name = tName
+										ifTrue: [ receiver := method parentType ]
+										ifFalse: [
+											receiver := method parentType subclassHierarchy detect: [
+												            :c | c name = tName ] ] ]
+								ifFalse: [
+									fast := self buildFASTFor: workMethod.
+									"We have to find the receiver of that call using fast."
 
-								fastInvocations := fast allWithType: FASTJavaMethodInvocation.
-								invocations := fastInvocations select: [ :i |
-									               i name = method name and: [
-										               i arguments size = method parameters size
-											               and: [
-											               i receiver isNil or: [
-												               i receiver isVariableExpression not ] ] ] ].
-								(invocations isEmpty and: [ method isStub ]) ifTrue: [
-									invocations := fastInvocations select: [ :i | "1 haltIf: [ invocations size > 1 ]"
-										               i name = method name ] ].
-								invocation := invocations first.
-								1 haltIf: [ "method mooseID = 1847135" false ].
-								invocation receiver ifNil: [ nilReceiverInFAST := true ].
-								(invocation receiver isNotNil and: [
-									 invocation receiver isInvocation or: [
-										 invocation receiver isNewExpression ] ])
-									ifTrue: [
-										| i cs actualMethod iName |
-										i := invocation receiver.
-										iName := i isNewExpression
-											         ifTrue: [ i type typeName name ]
-											         ifFalse: [
-												         i isInfixOperation
-													         ifTrue: [ invocation name ]
-													         ifFalse: [ i name ] ].
-										cs := calls select: [ :c |
-											      c candidates notEmpty and: [
-												      c candidates first name = iName and: [
-													      c candidates first parameters size
-													      = i arguments size or: [
-														      (self numberOfArguments: c candidates first)
-														      = i arguments size ] ] ] ].
-										"1 haltIf: [ cs size > 1 ]."
-										actualMethod := cs first candidates first.
-										receiver := actualMethod isConstructor
-											            ifTrue: [ actualMethod parentType ]
-											            ifFalse: [ actualMethod declaredType ].
+									fastInvocations := fast allToScope: FASTJavaMethodInvocation.
+									invocations := fastInvocations select: [ :i |
+										               i name = method name and: [
+											               i arguments size = method parameters size
+												               and: [
+												               i receiver isNil or: [
+													               i receiver isVariableExpression not ] ] ] ].
+									(invocations isEmpty and: [ method isStub ]) ifTrue: [
+										invocations := fastInvocations select: [ :i | "1 haltIf: [ invocations size > 1 ]"
+											               i name = method name ] ].
+									(invocations size > 1 and: [ call sourceAnchor notNil ])
+										ifTrue: [
+											| sPos ePos |
+											sPos := call sourceAnchor startPos
+											        - workMethod sourceAnchor startPos + 1.
+											ePos := call sourceAnchor endPos
+											        - workMethod sourceAnchor startPos + 1.
+											invocation := invocations detect: [ :i | i startPos = sPos ] ]
+										ifFalse: [ invocation := invocations anyOne ].
 
-										(receiver notNil and: [ receiver isParameterType ]) ifTrue: [
-											
-											cs first receiver ifNil: [ 
-												"Nothing to do, we have no parameter type bounds information in famix..."
-											 ].
-											(cs first receiver notNil and: [cs first receiver isStructuralEntity]) 
-												ifTrue: [
-													| cParams |
-													cs first receiver declaredType
-														ifNil: [
-															| fa ds ps |
-															fa := JavaSmaCCProgramNodeImporterVisitor
-																      parseCodeMethodString:
-																      'int f(){' , cs first receiver sourceText , ';}'.
-															ds := (fa allWithType: FASTJavaVarDeclStatement) first.
-															ps := ds type arguments collect: [ :a |
-																      a typeName name ].
-															cParams := ps collect: [ :p |
-																           entryMethod mooseModel allClasses detect: [
-																	           :c | c name = p ] ] ]
-														ifNotNil: [
-														cParams := cs first receiver declaredType
-															           concreteParameters ].
-
-													receiver := cParams at:
-														            (receiver typeContainer genericParameters
-															             indexOf: receiver) ]
-												ifFalse: [  ] ] ]
-									ifFalse: [
-										invocation receiver ifNil: [ nilReceiverInFAST := true ].
-										(invocation receiver notNil and: [
-											 invocation receiver isInfixOperation ]) ifTrue: [
-											| cs |
-											"If a method is called on the result of an infix operation, the result is probably a String"
+									invocation receiver ifNil: [ nilReceiverInFAST := true ].
+									(invocation receiver isNotNil and: [
+										 invocation receiver isInvocation or: [
+											 invocation receiver isNewExpression ] ])
+										ifTrue: [
+											| i cs actualMethod iName |
+											i := invocation receiver.
+											iName := i isNewExpression
+												         ifTrue: [ i type typeName name ]
+												         ifFalse: [
+													         i isInfixOperation
+														         ifTrue: [ invocation name ]
+														         ifFalse: [ i name ] ].
+											i isNewClassExpression ifTrue: [
+												iName := '_Anonymous(' , iName , ')' ].
 											cs := calls select: [ :c |
 												      c candidates notEmpty and: [
-													      c candidates first name = invocation name and: [
+													      c candidates first name = iName and: [
 														      c candidates first parameters size
-														      = invocation arguments size or: [
+														      = i arguments size or: [
 															      (self numberOfArguments: c candidates first)
-															      = invocation arguments size ] ] ] ].
-											receiver := cs first candidates first parentType.
+															      = i arguments size ] ] ] ].
+											"1 haltIf: [ cs size > 1 ]."
+											actualMethod := cs first candidates first.
+											receiver := actualMethod isConstructor
+												            ifTrue: [ actualMethod parentType ]
+												            ifFalse: [ actualMethod declaredType ].
 
-											1 haltIf: [ receiver name ~= 'String' or: [ cs size > 1 ] ] ] ] ] ].
+											(receiver notNil and: [ receiver isParameterType ])
+												ifTrue: [
+													cs first receiver ifNil: [ "Nothing to do, we have no parameter type bounds information in famix..."
+														 ].
+													(cs first receiver notNil and: [
+														 cs first receiver isStructuralEntity ])
+														ifTrue: [
+															| cParams |
+															cs first receiver declaredType
+																ifNil: [
+																	| fa ds ps |
+																	fa := JavaSmaCCProgramNodeImporterVisitor
+																		      parseCodeMethodString:
+																		      'int f(){' , cs first receiver sourceText
+																		      , ';}'.
+																	ds := (fa allWithType: FASTJavaVarDeclStatement)
+																		      first.
+																	ps := ds type arguments collect: [ :a |
+																		      a typeName name ].
+																	cParams := ps collect: [ :p |
+																		           entryMethod mooseModel allClasses
+																			           detect: [ :c | c name = p ] ] ]
+																ifNotNil: [
+																	| pe |
+																	cs first receiver declaredType isParametricEntity
+																		ifFalse: [
+																		pe := cs first receiver declaredType superclass ]
+																		ifTrue: [ pe := cs first receiver declaredType ].
+
+																	cParams := pe concreteParameters ].
+															cParams size
+															= receiver typeContainer genericParameters size
+																ifTrue: [
+																	receiver := cParams at:
+																		            (receiver typeContainer
+																			             genericParameters indexOf: receiver) ]
+																ifFalse: [  ] ]
+														ifFalse: [  ] ] ]
+										ifFalse: [
+											invocation receiver ifNil: [ nilReceiverInFAST := true ].
+											(invocation receiver notNil and: [
+												 invocation receiver isInfixOperation ]) ifTrue: [
+												| cs |
+												"If a method is called on the result of an infix operation, the result is probably a String"
+												cs := calls select: [ :c |
+													      c candidates notEmpty and: [
+														      c candidates first name = invocation name and: [
+															      c candidates first parameters size
+															      = invocation arguments size or: [
+																      (self numberOfArguments: c candidates first)
+																      = invocation arguments size ] ] ] ].
+												receiver := cs first candidates first parentType.
+
+												1 haltIf: [ receiver name ~= 'String' or: [ cs size > 1 ] ] ] ] ] ].
 
 					overridingMethods := OrderedCollection new.
 
@@ -319,16 +363,17 @@ JavaCallGraphModel >> cha [
 									ifFalse: [ "1 halt " ] ] ].
 
 
-					receiver ifNotNil: [
+					(receiver notNil and: [
+						 (receiver isStructuralEntity and: [
+							  receiver declaredType notNil and: [
+								  receiver declaredType isPrimitiveType ] ]) not ]) ifTrue: [
 						| rcv |
 						rcv := self receiverType: receiver.
 						rcv ifNil: [ rcv := method parentType ].
 						rcv ifNil: [ 1 halt ].
-						rcv isParameterType ifTrue: [ 
-							"If parameter type has upper bounds, we can use the class or/and interface(s)"
-							rcv := method parentType.
-						].
-						
+						rcv isParameterType ifTrue: [ "If parameter type has upper bounds, we can use the class or/and interface(s)"
+							rcv := method parentType ].
+
 						rcv addMethodOverriding: method in: overridingMethods.
 
 						overridingMethods := overridingMethods reject: [ :m |
@@ -339,10 +384,11 @@ JavaCallGraphModel >> cha [
 
 
 					method isStub ifFalse: [ overridingMethods add: method ].
-					1 haltIf: [ overridingMethods size > 200 ].
+					"1 haltIf: [ overridingMethods size > 200 ]."
 					method isStub ifTrue: [ stubMethods add: method ].
 
-
+					"(method name , '(' , overridingMethods size asString , ')')
+						traceCr."
 					overridingMethods do: [ :oMeth |
 						self addLinkFrom: workMethod to: oMeth.
 						((callGraph includesKey: oMeth) or: [
@@ -455,16 +501,21 @@ JavaCallGraphModel >> initialize [
 ]
 
 { #category : 'util' }
-JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [ 
+JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 	"Looks for the number of parameters of a stub method"
-	|parameters|
-	parameters := (aFamixJavaMethod signature
+
+	| number ctx params |
+	params := (aFamixJavaMethod signature
 		               copyFrom: aFamixJavaMethod name size + 2
-		               to: aFamixJavaMethod signature size - 1)
-		              ifEmpty: [ #(  ) ]
-		              ifNotEmpty: [ :params | params splitOn: $, ].
-	^ parameters size
-	
+		               to: aFamixJavaMethod signature size - 1).
+	params ifEmpty: [ ^ 0 ].
+	number := 0.
+	ctx := 0.
+	params do: [ :c |
+		c = $< ifTrue: [ ctx := ctx + 1 ].
+		(c = $, and: [ ctx = 0 ]) ifTrue: [ number := number + 1 ].
+		c = $> ifTrue: [ ctx := ctx - 1 ] ].
+	^ number + 1
 ]
 
 { #category : 'util' }
