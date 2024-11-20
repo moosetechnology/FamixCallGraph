@@ -102,9 +102,11 @@ MiServiceCallGraphVisualization >> baseShapeSize [
 { #category : 'running' }
 MiServiceCallGraphVisualization >> buildInCanvas: aCanvas [
 
+	aCanvas @ RSCanvasController.
 	aCanvas originTopLeft.
 	self runAsRoassalJobInCanvas: aCanvas.
 	self buildMenuInCanvas: aCanvas.
+	aCanvas signalUpdate
 ]
 
 { #category : 'running' }
@@ -734,7 +736,7 @@ MiServiceCallGraphVisualization >> runAsRoassalJobInCanvas: aCanvas [
 
 	job title: ''.
 	job currentValue: 100.
-	(Delay forDuration: (Duration milliSeconds: 200)) wait ]
+	(Delay forMilliseconds: 200) wait ]
 		runAsRoassalJobOn: aCanvas useRTree.
 ]
 

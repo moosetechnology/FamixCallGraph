@@ -8,7 +8,8 @@ Class {
 		'typeGraph',
 		'entryMethod',
 		'nodesDict',
-		'stubMethods'
+		'stubMethods',
+		'fastCache'
 	],
 	#category : 'MooseIDE-CallGraph-Algo',
 	#package : 'MooseIDE-CallGraph',
@@ -71,16 +72,19 @@ JavaCallGraphModel >> allPathsFrom: start to: end [
 JavaCallGraphModel >> buildFASTFor: aMethod [
 
 	| fast |
-	[ fast := (aMethod getFASTModel) allFASTJavaMethodEntity first ]
+	fastCache at: aMethod ifPresent: [ :f | '>>>Acess Cache' traceCr. ^ f ].
+	'>>>Build fast' traceCr.
+	[ fast := aMethod getFASTModel allFASTJavaMethodEntity first ]
 		on: Error
 		do: [
-			| f code meth |
-			code := (aMethod sourceAnchor fileName asFileReference
+			| f code |
+			code := ( aMethod sourceAnchor fileReference
 				         readStreamEncoded: aMethod sourceAnchor encoding) upToEnd.
 			f := JavaSmaCCProgramNodeImporterVisitor new parseCodeString: code.
 			fast := (f allFASTJavaMethodEntity select: [ :m |
 				         m name = aMethod name and: [
 					         aMethod parameters size = m parameters size ] ]) first ].
+	fastCache at: aMethod put: fast.
 	^ fast
 ]
 
@@ -187,6 +191,7 @@ JavaCallGraphModel >> cha [
 	stubMethods := OrderedCollection new.
 	worklist := OrderedCollection new.
 	visited := Dictionary new.
+	fastCache := Dictionary new.
 
 	worklist add: entryMethod.
 	visited at: entryMethod put: true.
@@ -194,9 +199,9 @@ JavaCallGraphModel >> cha [
 	[ worklist isEmpty ] whileFalse: [
 		| calls workMethod |
 		workMethod := worklist removeLast.
-		"self debugCaca: {
+		self debugCaca: {
 				workMethod.
-				worklist }."
+				worklist }.
 		calls := workMethod outgoingInvocations.
 		calls do: [ :call |
 			| overridingMethods method receiver nilReceiverInFAST |
@@ -205,8 +210,6 @@ JavaCallGraphModel >> cha [
 				ifNotEmpty: [
 					method := call candidates first.
 					receiver := call receiver.
-
-
 
 					(receiver isNil and: [
 						 method isConstructor not and: [ method parentType notNil ] ])
@@ -259,12 +262,16 @@ JavaCallGraphModel >> cha [
 											               i name = method name ] ].
 									(invocations size > 1 and: [ call sourceAnchor notNil ])
 										ifTrue: [
-											| sPos ePos |
-											sPos := call sourceAnchor startPos
-											        - workMethod sourceAnchor startPos + 1.
-											ePos := call sourceAnchor endPos
-											        - workMethod sourceAnchor startPos + 1.
-											invocation := invocations detect: [ :i | i startPos = sPos ] ]
+											| sPos |
+											sPos := fast mooseModel allFASTJavaClassDeclaration
+												        ifEmpty: [
+												        call sourceAnchor startPos
+												        - workMethod sourceAnchor startPos ]
+												        ifNotEmpty: [ call sourceAnchor startPos ].
+
+											invocation := fastInvocations detect: [ :i |
+												              i startPos >= (sPos - 2) and: [
+													              i startPos <= (sPos + 2) ] ] ]
 										ifFalse: [ invocation := invocations anyOne ].
 
 									invocation receiver ifNil: [ nilReceiverInFAST := true ].
@@ -290,10 +297,14 @@ JavaCallGraphModel >> cha [
 															      (self numberOfArguments: c candidates first)
 															      = i arguments size ] ] ] ].
 											"1 haltIf: [ cs size > 1 ]."
-											actualMethod := cs first candidates first.
-											receiver := actualMethod isConstructor
-												            ifTrue: [ actualMethod parentType ]
-												            ifFalse: [ actualMethod declaredType ].
+
+											cs ifNotEmpty: [ "If empty there is a problem in the model... Could not find the method."
+												actualMethod := cs first candidates first.
+												receiver := actualMethod isConstructor
+													            ifTrue: [ actualMethod parentType ]
+													            ifFalse: [ actualMethod declaredType ] ].
+
+
 
 											(receiver notNil and: [ receiver isParameterType ])
 												ifTrue: [
@@ -352,8 +363,8 @@ JavaCallGraphModel >> cha [
 
 					overridingMethods := OrderedCollection new.
 
-					(receiver isNil and: [ method parentType isNil ]) ifTrue: [
-						1 halt ].
+					(receiver isNil and: [ method parentType isNil ]) ifTrue: [ "problem"
+						 ].
 					receiver ifNil: [
 						nilReceiverInFAST
 							ifTrue: [ receiver := workMethod parentType ]
@@ -371,7 +382,7 @@ JavaCallGraphModel >> cha [
 						rcv := self receiverType: receiver.
 						rcv ifNil: [ rcv := method parentType ].
 						rcv ifNil: [ 1 halt ].
-						rcv isParameterType ifTrue: [ "If parameter type has upper bounds, we can use the class or/and interface(s)"
+						rcv isParameterType ifTrue: [ "If parameter type has upper bounds, we can use the class or/and interface(s), for now no bounds in famix :("
 							rcv := method parentType ].
 
 						rcv addMethodOverriding: method in: overridingMethods.
@@ -387,8 +398,8 @@ JavaCallGraphModel >> cha [
 					"1 haltIf: [ overridingMethods size > 200 ]."
 					method isStub ifTrue: [ stubMethods add: method ].
 
-					"(method name , '(' , overridingMethods size asString , ')')
-						traceCr."
+					(method name , '(' , overridingMethods size asString , ')')
+						traceCr.
 					overridingMethods do: [ :oMeth |
 						self addLinkFrom: workMethod to: oMeth.
 						((callGraph includesKey: oMeth) or: [
@@ -500,6 +511,35 @@ JavaCallGraphModel >> initialize [
 	methods := Set new
 ]
 
+{ #category : 'initialization' }
+JavaCallGraphModel >> lookForBoundsOfParameterType: parameterType [
+
+	| tc code fast tp className |
+	self
+		assert: parameterType isParameterType
+		description: 'A parameter type was expected.'.
+	self
+		assert: parameterType typeContainer notNil
+		description: 'The parameter type has no container.'.
+	tc := parameterType typeContainer.
+
+	code := tc sourceText copyUpTo: ${.
+
+	tc isMethod
+		ifTrue: [
+			fast := JavaSmaCCProgramNodeImporterVisitor new
+				        parseCodeMethodString: code , ';' ]
+		ifFalse: [
+			fast := JavaSmaCCProgramNodeImporterVisitor new parseCodeString:
+				        code , '{}' ].
+
+	tp := (fast allWithType: FASTJavaTypeParameterExpression) detect: [
+		      :t | t name = parameterType name ].
+	className := tp types first typeName name.
+	parameterType mooseModel allTypes select: [ :c | c isPrimitiveType not and: [c isConcreteEntity not and: [ c name = className ]] ].
+	1 halt
+]
+
 { #category : 'util' }
 JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 	"Looks for the number of parameters of a stub method"
@@ -528,7 +568,7 @@ JavaCallGraphModel >> receiverType: methodReceiver [
 			^ methodReceiver parentBehaviouralEntity parentType ].
 		^ methodReceiver declaredType ].
 	methodReceiver isType ifTrue: [ ^ methodReceiver ].
-	1 halt
+	^ nil
 ]
 
 { #category : 'accessing' }
