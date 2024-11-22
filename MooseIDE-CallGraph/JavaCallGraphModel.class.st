@@ -6,7 +6,7 @@ Class {
 		'classes',
 		'methods',
 		'typeGraph',
-		'entryMethod',
+		'entryMethods',
 		'nodesDict',
 		'stubMethods',
 		'fastCache'
@@ -20,7 +20,15 @@ Class {
 JavaCallGraphModel class >> chaFromMethod: aMethod [
 
 	^ self new
-		  entryMethod: aMethod;
+		  entryMethods: {aMethod};
+		  cha
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel class >> chaFromMethods: aCollectionOfMethods [
+
+	^ self new
+		  entryMethods: aCollectionOfMethods;
 		  cha
 ]
 
@@ -149,13 +157,7 @@ JavaCallGraphModel >> buildtypeGraph [
 JavaCallGraphModel >> callGraph [
 
 	^ callGraph ifNil: [
-		  | dict |
-		  dict := Dictionary new.
-		  dict at: entryMethod put: 0.
-		  classes add: entryMethod parentType.
-		  methods add: entryMethod.
-		  self callGraph: dict depth: 0 method: entryMethod.
-		  callGraph := dict ]
+		  nil ]
 ]
 
 { #category : 'computing' }
@@ -192,8 +194,10 @@ JavaCallGraphModel >> cha [
 	visited := Dictionary new.
 	fastCache := Dictionary new.
 
-	worklist add: entryMethod.
-	visited at: entryMethod put: true.
+	worklist addAll: entryMethods.
+	entryMethods do: [ :em | visited at: em put: true ].
+
+
 
 	[ worklist isEmpty ] whileFalse: [
 		| calls workMethod |
@@ -321,7 +325,7 @@ JavaCallGraphModel >> cha [
 																	ps := ds type arguments collect: [ :a |
 																		      a typeName name ].
 																	cParams := ps collect: [ :p |
-																		           entryMethod mooseModel allClasses
+																		           workMethod mooseModel allClasses
 																			           detect: [ :c | c name = p ] ] ]
 																ifNotNil: [
 																	| pe |
@@ -389,7 +393,7 @@ JavaCallGraphModel >> cha [
 
 					method isStub ifFalse: [ overridingMethods add: method ].
 					"1 haltIf: [ overridingMethods size > 200 ]."
-					method isStub ifTrue: [ stubMethods add: method ].
+					method isStub ifTrue: [ stubMethods add: call ].
 
 					overridingMethods do: [ :oMeth |
 						self addLinkFrom: workMethod to: oMeth.
@@ -410,15 +414,15 @@ JavaCallGraphModel >> debugCaca: aCollection [
 ]
 
 { #category : 'accessing' }
-JavaCallGraphModel >> entryMethod [
+JavaCallGraphModel >> entryMethods [
 
-	^ entryMethod
+	^ entryMethods
 ]
 
 { #category : 'accessing' }
-JavaCallGraphModel >> entryMethod: anObject [
+JavaCallGraphModel >> entryMethods: anObject [
 
-	entryMethod := anObject
+	entryMethods := anObject
 ]
 
 { #category : 'as yet unclassified' }
@@ -529,6 +533,12 @@ JavaCallGraphModel >> lookForBoundsOfParameterType: parameterType [
 	parameterType mooseModel allTypes select: [ :c |
 		c isPrimitiveType not and: [
 			c isConcreteEntity not and: [ c name = className ] ] ]
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> methods [
+
+	^ methods
 ]
 
 { #category : 'util' }

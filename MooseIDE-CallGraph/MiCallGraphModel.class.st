@@ -39,7 +39,7 @@ MiCallGraphModel >> callGraph [
 
 	^ callGraph ifNil: [
 		  callGraph := JavaCallGraphModel new
-			               entryMethod: entity;
+			               entryMethods: {entity};
 			               cha ]
 ]
 
