@@ -113,44 +113,52 @@ JavaCallGraphModel >> buildtypeGraph [
 	nodesDict := Dictionary new.
 	"Create nodes for the type graph."
 	self addGraphNodes.
-
 	"Add egdes to the type graph."
 	methods do: [ :m |
 		| ast assignmentsAndDeclarators referenceAssignments methodCalls |
-		ast := (JavaSmaCCProgramNodeImporterVisitor new
-			        parseCodeMethodString: m sourceText)
-			       allFASTJavaMethodEntity first.
+		ast := self buildFASTFor: m.
 
 
-		assignmentsAndDeclarators := (ast allToScope: FASTJavaAssignmentExpression), (ast allToScope: FASTJavaVariableDeclarator).
-		methodCalls := ast allToScope: FASTJavaMethodInvocation.
-		
-		referenceAssignments := (assignmentsAndDeclarators select: [ :a |
-			 a expression class = FASTJavaVariableExpression or: [
-				 a expression class = FASTJavaCastExpression and: [
-					 a expression expression class = FASTJavaVariableExpression ] ] ]).
-		
-		methodCalls := (assignmentsAndDeclarators  select: [:a | a expression class = FASTJavaMethodInvocation ]).
-		
-		methodCalls do: [ :c | |call|
+		assignmentsAndDeclarators := (ast allToScope:
+			                              FASTJavaAssignmentExpression)
+		                             ,
+		                             (ast allToScope:
+			                              FASTJavaVariableDeclarator).
+	
+
+		referenceAssignments := assignmentsAndDeclarators select: [ :a |
+			                        a expression class
+			                        = FASTJavaVariableExpression or: [
+				                        a expression class
+				                        = FASTJavaCastExpression and: [
+					                        a expression expression class
+					                        = FASTJavaVariableExpression ] ] ].
+
+		methodCalls := assignmentsAndDeclarators select: [ :a |
+			               a expression class = FASTJavaMethodInvocation ].
+
+		methodCalls do: [ :c | 
+			| call |
 			call := c expression.
-			call receiver
-		].
-		
+			call receiver.
+			
+			
+			 ].
+
 		"Assignment statements: a = b or a = (C) b"
 		referenceAssignments do: [ :fa |
-				| var expVar famixVar famixExpVar |
-				var := fa variable.
-				expVar := fa expression.
-				expVar class = FASTJavaCastExpression ifTrue: [
-					expVar := expVar expression ].
-				famixVar := self findFamixVariable: var from: m.
-				famixExpVar := self findFamixVariable: expVar from: m.
-				
-				typeGraph
-					at: famixExpVar
-					ifPresent: [ :c | c add: famixVar ]
-					ifAbsentPut: [ OrderedCollection with: famixVar ] ] ]
+			| var expVar famixVar famixExpVar |
+			var := fa variable.
+			expVar := fa expression.
+			expVar class = FASTJavaCastExpression ifTrue: [
+				expVar := expVar expression ].
+			famixVar := self findFamixVariable: var from: m.
+			famixExpVar := self findFamixVariable: expVar from: m.
+
+			typeGraph
+				at: famixExpVar
+				ifPresent: [ :c | c add: famixVar ]
+				ifAbsentPut: [ OrderedCollection with: famixVar ] ] ]
 ]
 
 { #category : 'accessing' }
@@ -392,7 +400,7 @@ JavaCallGraphModel >> cha [
 
 
 					method isStub ifFalse: [ overridingMethods add: method ].
-					"1 haltIf: [ overridingMethods size > 200 ]."
+					
 					method isStub ifTrue: [ stubMethods add: call ].
 
 					overridingMethods do: [ :oMeth |
@@ -404,13 +412,6 @@ JavaCallGraphModel >> cha [
 				ifEmpty: [ 'No call candidate' traceCr ] ] ].
 	classes := methods collectAsSet: [ :m | m parentType ].
 	^ callGraph
-]
-
-{ #category : 'as yet unclassified' }
-JavaCallGraphModel >> debugCaca: aCollection [ 
-	<debuggerCompleteToSender>
-	"self halt......"
-	('-----------------', aCollection first parentType name, '.', aCollection first name) traceCr.
 ]
 
 { #category : 'accessing' }
