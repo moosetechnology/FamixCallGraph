@@ -62,5 +62,6 @@ MiServiceCallGraphBrowser >> initializeLayout [
 MiServiceCallGraphBrowser >> initializePresenters [
 
 	mainPresenter := self class mapClass owner: self.
+	mainPresenter model: specModel.
 	self initializeLayout
 ]

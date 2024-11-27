@@ -20,6 +20,15 @@ FamixJavaMethod >> isRecursive [
 ]
 
 { #category : '*MooseIDE-CallGraph' }
+FamixJavaMethod >> miCallGraphInspectorExtension [
+
+	<inspectorPresentationOrder: 10 title: 'Call graph'>
+	^ (MiServiceCallGraphVisualization new
+		  model: (MiCallGraphModel new entity: self);
+		  yourself) asInspectorPresenter
+]
+
+{ #category : '*MooseIDE-CallGraph' }
 FamixJavaMethod >> mooseNameOn: stream parentType: aClass [
 
 	aClass mooseNameOn: stream.

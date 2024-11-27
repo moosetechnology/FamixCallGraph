@@ -2,6 +2,7 @@ Class {
 	#name : 'MiServiceCallGraphVisualization',
 	#superclass : 'MiAbstractVisualization',
 	#instVars : [
+		'model',
 		'methodShapes',
 		'colorDictionary',
 		'methodShapeDict',
@@ -64,6 +65,15 @@ MiServiceCallGraphVisualization >> addInteractionsOn: aShape [
 		@ self highlighIncomingLines;
 		@ self highlightSubGraph;
 		@ self unhighlightOtherNodes
+]
+
+{ #category : 'converting' }
+MiServiceCallGraphVisualization >> asInspectorPresenter [
+
+	self run.
+	^ SpRoassalInspectorPresenter new
+		  canvas: self canvas;
+		  yourself
 ]
 
 { #category : 'running' }
@@ -617,7 +627,13 @@ MiServiceCallGraphVisualization >> layerShapes [
 { #category : 'running' }
 MiServiceCallGraphVisualization >> model [ 
 
-	^ self owner model
+	^ model
+]
+
+{ #category : 'running' }
+MiServiceCallGraphVisualization >> model: aCallGraphModel [
+
+	model := aCallGraphModel
 ]
 
 { #category : 'running' }
