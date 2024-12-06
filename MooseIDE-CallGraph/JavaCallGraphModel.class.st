@@ -268,6 +268,7 @@ JavaCallGraphModel >> cha [
 									(invocations isEmpty and: [ method isStub ]) ifTrue: [
 										invocations := fastInvocations select: [ :i | "1 haltIf: [ invocations size > 1 ]"
 											               i name = method name ] ].
+									invocations ifEmpty: [ 'No invocation found' traceCr ].
 									(invocations size > 1 and: [ call sourceAnchor notNil ])
 										ifTrue: [
 											| sPos |
@@ -277,14 +278,14 @@ JavaCallGraphModel >> cha [
 												        - workMethod sourceAnchor startPos ]
 												        ifNotEmpty: [ call sourceAnchor startPos ].
 
-											invocation := fastInvocations detect: [ :i |
-												              i startPos between: sPos - 2 and: sPos + 2 ] ]
-										ifFalse: [ invocation := invocations anyOne ].
+											invocation := invocations detect: [ :i |
+												              i startPos between: sPos - 2 and: sPos + 2 ] ifNone: [ invocations anyOne ] ]
+										ifFalse: [invocations ifNotEmpty: [ 'Several invocations found in FAST but could not chose.' traceCr ] ].
 
-									invocation receiver ifNil: [ nilReceiverInFAST := true ].
-									(invocation receiver isNotNil and: [
+									(invocation notNil and: [invocation receiver ])ifNil: [ nilReceiverInFAST := true ].
+									(invocation notNil and: [invocation receiver isNotNil and: [
 										 invocation receiver isInvocation or: [
-											 invocation receiver isNewExpression ] ])
+											 invocation receiver isNewExpression ] ]])
 										ifTrue: [
 											| i cs actualMethod iName |
 											i := invocation receiver.
@@ -352,9 +353,9 @@ JavaCallGraphModel >> cha [
 																ifFalse: [  ] ]
 														ifFalse: [  ] ] ]
 										ifFalse: [
-											invocation receiver ifNil: [ nilReceiverInFAST := true ].
-											(invocation receiver notNil and: [
-												 invocation receiver isInfixOperation ]) ifTrue: [
+											(invocation notNil and: [invocation receiver notNil]) ifTrue: [ nilReceiverInFAST := true ].
+											(invocation notNil and: [invocation receiver notNil and: [
+												 invocation receiver isInfixOperation ]]) ifTrue: [
 												| cs |
 												"If a method is called on the result of an infix operation, the result is probably a String"
 												cs := calls select: [ :c |
