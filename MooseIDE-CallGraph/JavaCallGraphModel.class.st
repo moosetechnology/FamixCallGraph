@@ -9,7 +9,10 @@ Class {
 		'entryMethods',
 		'nodesDict',
 		'stubMethods',
-		'fastCache'
+		'fastCache',
+		'dominatorsDict',
+		'dominatorTree',
+		'dtreeDict'
 	],
 	#category : 'MooseIDE-CallGraph-Algo',
 	#package : 'MooseIDE-CallGraph',
@@ -164,8 +167,7 @@ JavaCallGraphModel >> buildtypeGraph [
 { #category : 'accessing' }
 JavaCallGraphModel >> callGraph [
 
-	^ callGraph ifNil: [
-		  nil ]
+	^ callGraph 
 ]
 
 { #category : 'computing' }
@@ -190,6 +192,26 @@ JavaCallGraphModel >> callGraph: dict depth: depth method: aMethod [
 			self callGraph: dict depth: newDepth method: m] ].
 	
 	^ dict
+]
+
+{ #category : 'transofrming' }
+JavaCallGraphModel >> callGraphOf: aFamixJavaMethod [
+
+	| subCallGraph worklist visited |
+	subCallGraph := Dictionary new.
+
+	worklist := OrderedCollection new.
+	worklist add: aFamixJavaMethod.
+	visited := Set new.
+
+	[ worklist notEmpty ] whileTrue: [
+		| m |
+		m := worklist removeLast.
+		visited add: m.
+		callGraph at: m ifPresent: [ :c |
+			subCallGraph at: m put: c.
+			c do: [ :mm | (visited includes: mm) ifFalse: [ worklist add: mm ] ] ] ].
+	^ subCallGraph
 ]
 
 { #category : 'initialization' }
@@ -415,6 +437,122 @@ JavaCallGraphModel >> cha [
 	^ callGraph
 ]
 
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> computeDominatorTree [
+
+	dominatorTree := Dictionary new.
+	dominatorsDict associationsDo: [ :assoc | |node dom_set doms|
+		node := assoc key.
+		dom_set := assoc value.
+		
+		dom_set size > 1 ifTrue: [ 
+			doms := OrderedCollection withAll: dom_set.
+			doms remove: node.
+			
+			doms sort: [ :a :b | (dominatorsDict at: a) size > (dominatorsDict at: b) size ].
+			
+			dominatorTree at: node put: doms first.
+		
+		]
+		
+	].
+
+	"Transform the dominator tree into an adjacency list"
+	dtreeDict := Dictionary new.
+	dominatorTree associationsDo: [ :assoc | 
+		dtreeDict at: assoc value ifPresent: [ :c | c add: assoc key ] ifAbsentPut: [ Set with: assoc key ]
+	].
+	
+	^ dtreeDict
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> computeDominators [
+
+	| nodes changed rootMethod |
+	
+	rootMethod :=  FamixJavaMethod named: 'rootMethod'.
+	rootMethod parentType: (FamixJavaClass named: 'rootClass').
+	self methods add: rootMethod.
+	self callGraph at: rootMethod put: entryMethods.
+	nodes := (self callGraph keys, self callGraph values flatten) asSet.
+	dominatorsDict := Dictionary new.
+	
+	nodes do: [ :n |
+		dominatorsDict at: n put: nodes asSet
+	].
+	dominatorsDict at: rootMethod put: (Set with: rootMethod).
+
+	changed := true.
+	
+	[ changed ] whileTrue: [ 
+		changed := false.
+		
+		nodes do: [ :n |
+			n = rootMethod ifFalse: [ |domSets newDom preds|
+				preds := self predecessors: n.
+				preds ifEmpty: [  ] ifNotEmpty: [
+				domSets := preds collect:  [ :pred | dominatorsDict at: pred ].
+				
+				newDom := Set intersectSets: domSets.
+				newDom add: n.
+				(newDom = (dominatorsDict at: n)) ifFalse: [
+				dominatorsDict at: n put: newDom.
+				changed := true	
+				 ]
+			]]
+			
+		 ]
+	].
+	^ dominatorsDict
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> computeModules [
+
+	| root roots |
+	root := dtreeDict keys detect: [ :m | m name = 'rootMethod' ].
+
+	roots := dtreeDict at: root.
+	
+	roots flatCollect: [ :r | {r},( self dominatedMethodsFrom: r) asOrderedCollection ].
+	roots withIndexDo: [ :m :i |
+		| dm tn |
+		dm := self dominatedMethodsFrom: m.
+		tn :=  'm', i asString.
+		m tagWithName: tn.
+		dm do: [ :e | e tagWithName: tn ]
+	]
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> degreeOf: aMethod [
+
+	| neighbors |
+	neighbors := Set new.
+	neighbors addAll: (self predecessors: aMethod).
+	neighbors addAll: (self successors: aMethod).
+	^ neighbors size
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> dominatedMethodsFrom: method [
+
+	^ self subgraphOf: method in: dtreeDict
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> dominatorTree [
+
+	^ dominatorTree
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> dominatorsDict [
+
+	^ dominatorsDict
+]
+
 { #category : 'accessing' }
 JavaCallGraphModel >> entryMethods [
 
@@ -425,6 +563,47 @@ JavaCallGraphModel >> entryMethods [
 JavaCallGraphModel >> entryMethods: anObject [
 
 	entryMethods := anObject
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> exportCallGraphToCSV [
+
+	| nodes idDict nodesFile edgesFile |
+	nodes := Set new.
+	nodes addAll: callGraph keys.
+	nodes addAll: callGraph values flatten.
+	idDict := Dictionary new.
+	nodes withIndexDo: [ :n :i | idDict at: n put: i ].
+
+	nodesFile := 'nodes.csv' asFileReference.
+	nodesFile ensureCreateFile.
+	nodesFile writeStreamDo: [ :s |
+		s
+			<< 'Id,Label';
+			<< Character cr.
+		idDict keysAndValuesDo: [ :method :id |
+			s
+				<< id asString;
+				<< ',';
+				<< method name;
+				<< Character cr ] ].
+
+	edgesFile := 'edges.csv' asFileReference.
+	edgesFile ensureCreateFile.
+	edgesFile writeStreamDo: [ :s |
+		s << 'Source,Target' << Character cr.
+
+		callGraph keysAndValuesDo: [ :caller :callees |
+			| callerID |
+			caller name = 'rootMethod' ifFalse: [
+				callerID := (idDict at: caller) asString.
+
+				callees do: [ :callee |
+					s
+						<< callerID;
+						<< ',';
+						<< (idDict at: callee) asString;
+						<< Character cr ] ] ] ]
 ]
 
 { #category : 'as yet unclassified' }
@@ -543,6 +722,12 @@ JavaCallGraphModel >> methods [
 	^ methods
 ]
 
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> methodsInCallGraphFrom: method [
+
+	^ self subgraphOf: method in: self callGraph
+]
+
 { #category : 'util' }
 JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 	"Looks for the number of parameters of a stub method"
@@ -559,6 +744,16 @@ JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 		(c = $, and: [ ctx = 0 ]) ifTrue: [ number := number + 1 ].
 		c = $> ifTrue: [ ctx := ctx - 1 ] ].
 	^ number + 1
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> predecessors: method [
+
+	| preds |
+	preds := Set new.
+	self callGraph associationsDo: [ :assoc |
+		(assoc value includes: method) ifTrue: [ preds add: assoc key ] ].
+	^ preds
 ]
 
 { #category : 'util' }
@@ -584,4 +779,27 @@ JavaCallGraphModel >> stubMethods [
 JavaCallGraphModel >> stubMethods: anObject [
 
 	stubMethods := anObject
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> subgraphOf: method in: graph [
+
+	| ms worklist |
+	ms := Set new.
+
+	worklist := OrderedCollection withAll:
+		            (graph at: method ifAbsent: [ {  } ]).
+	[ worklist isNotEmpty ] whileTrue: [
+		| n |
+		n := worklist removeLast.
+		ms add: n.
+		(graph at: n ifAbsent: [ {  } ]) do: [ :z |
+			(ms includes: z) ifFalse: [ worklist add: z ] ] ].
+	^ ms
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> successors: aMethod [
+
+	^ callGraph at: aMethod ifAbsent: [ {  } ]
 ]
