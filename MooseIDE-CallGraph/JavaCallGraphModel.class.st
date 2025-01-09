@@ -12,7 +12,8 @@ Class {
 		'fastCache',
 		'dominatorsDict',
 		'dominatorTree',
-		'dtreeDict'
+		'dtreeDict',
+		'entryPointMethodBuckets'
 	],
 	#category : 'MooseIDE-CallGraph-Algo',
 	#package : 'MooseIDE-CallGraph',
@@ -202,6 +203,26 @@ JavaCallGraphModel >> callGraphOf: aFamixJavaMethod [
 
 	worklist := OrderedCollection new.
 	worklist add: aFamixJavaMethod.
+	visited := Set new.
+
+	[ worklist notEmpty ] whileTrue: [
+		| m |
+		m := worklist removeLast.
+		visited add: m.
+		callGraph at: m ifPresent: [ :c |
+			subCallGraph at: m put: c.
+			c do: [ :mm | (visited includes: mm) ifFalse: [ worklist add: mm ] ] ] ].
+	^ subCallGraph
+]
+
+{ #category : 'transofrming' }
+JavaCallGraphModel >> callGraphOfMethods: aCollectionOfMethods [
+
+	| subCallGraph worklist visited |
+	subCallGraph := Dictionary new.
+
+	worklist := OrderedCollection new.
+	worklist addAll: aCollectionOfMethods.
 	visited := Set new.
 
 	[ worklist notEmpty ] whileTrue: [
@@ -541,6 +562,16 @@ JavaCallGraphModel >> dominatedMethodsFrom: method [
 	^ self subgraphOf: method in: dtreeDict
 ]
 
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> dominatedMethodsFromMethods: methodCollection [
+
+	| dm |
+	dm := Set new.
+	methodCollection do: [ :method |
+		dm addAll: (self subgraphOf: method in: dtreeDict) ].
+	^ dm
+]
+
 { #category : 'accessing' }
 JavaCallGraphModel >> dominatorTree [
 
@@ -563,6 +594,28 @@ JavaCallGraphModel >> entryMethods [
 JavaCallGraphModel >> entryMethods: anObject [
 
 	entryMethods := anObject
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> entryPointMethodBuckets [
+
+	^ entryPointMethodBuckets ifNil: [
+		  entryPointMethodBuckets := Dictionary new.
+		  entryMethods do: [ :m |
+			  entryPointMethodBuckets
+				  at: m
+				  put: (self methodsInCallGraphFrom: m) ] ]
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> entryPointsUsing: method [
+
+	| ep |
+	ep := Set new.
+	self entryPointMethodBuckets associations do: [ :assoc |
+		(assoc value includes: method) ifTrue: [ ep add: assoc key ] ].
+	
+	^ ep
 ]
 
 { #category : 'as yet unclassified' }
