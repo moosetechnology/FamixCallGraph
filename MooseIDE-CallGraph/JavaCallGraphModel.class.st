@@ -13,7 +13,16 @@ Class {
 		'dominatorsDict',
 		'dominatorTree',
 		'dtreeDict',
-		'entryPointMethodBuckets'
+		'entryPointMethodBuckets',
+		'rootMethod',
+		'methodsToIgnore',
+		'predecessorsDict',
+		'visited',
+		'dfsOrder',
+		'parent',
+		'vertex',
+		'semi',
+		'idom'
 	],
 	#category : 'MooseIDE-CallGraph-Algo',
 	#package : 'MooseIDE-CallGraph',
@@ -458,7 +467,7 @@ JavaCallGraphModel >> cha [
 	^ callGraph
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'domination' }
 JavaCallGraphModel >> computeDominatorTree [
 
 	dominatorTree := Dictionary new.
@@ -487,45 +496,114 @@ JavaCallGraphModel >> computeDominatorTree [
 	^ dtreeDict
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'domination' }
 JavaCallGraphModel >> computeDominators [
 
-	| nodes changed rootMethod |
-	
-	rootMethod :=  FamixJavaMethod named: 'rootMethod'.
-	rootMethod parentType: (FamixJavaClass named: 'rootClass').
-	self methods add: rootMethod.
-	self callGraph at: rootMethod put: entryMethods.
-	nodes := (self callGraph keys, self callGraph values flatten) asSet.
+	| nodes changed |
+	self initializeRootMethod.
+	nodes := (self callGraph keys , self callGraph values flatten difference:
+	methodsToIgnore) asSet.
 	dominatorsDict := Dictionary new.
+	nodes do: [ :n | dominatorsDict at: n put: (IdentitySet withAll: nodes) ].
+	dominatorsDict at: rootMethod put: (IdentitySet with: rootMethod).
 	
-	nodes do: [ :n |
-		dominatorsDict at: n put: nodes asSet
-	].
-	dominatorsDict at: rootMethod put: (Set with: rootMethod).
-
 	changed := true.
-	
-	[ changed ] whileTrue: [ 
+	[ changed ] whileTrue: [
 		changed := false.
-		
 		nodes do: [ :n |
-			n = rootMethod ifFalse: [ |domSets newDom preds|
+			n = rootMethod ifFalse: [
+				| domSets newDom preds |
 				preds := self predecessors: n.
+				preds := preds difference: methodsToIgnore.
 				preds ifEmpty: [  ] ifNotEmpty: [
-				domSets := preds collect:  [ :pred | dominatorsDict at: pred ].
-				
-				newDom := Set intersectSets: domSets.
-				newDom add: n.
-				(newDom = (dominatorsDict at: n)) ifFalse: [
-				dominatorsDict at: n put: newDom.
-				changed := true	
-				 ]
-			]]
+					domSets := preds collect: [ :pred | dominatorsDict at: pred ].
+					newDom := Set intersectSets: domSets.
+					newDom add: n.
+					newDom = (dominatorsDict at: n) ifFalse: [
+						dominatorsDict at: n put: newDom.
+						changed := true ] ] ] ] ].
+	
+	^ dominatorsDict
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> computeLTDominators [
+
+	| bucket ancestor label eval compress link size child |
+	self initializeRootMethod.
+	self dfs: rootMethod.
+
+	semi := Dictionary new.
+	bucket := Dictionary new.
+	label := Dictionary new.
+	
+	size := Dictionary new.
+	child := Dictionary new.
+	
+	dfsOrder withIndexDo: [ :m :i |
+		size at: m put: 1.
+		semi at: m put: i.
+		vertex at: i put: m.
+		bucket at: m put: OrderedCollection new.
+		label at: m put: m ].
+
+	ancestor := Dictionary new.
+	idom := Dictionary new.
+
+	compress := [ :v | 
+		(ancestor includesKey: (ancestor at: v)) ifTrue: [ 
+			compress value:(ancestor at: v).
 			
+			(semi at: (label at:(ancestor at: v))) < (semi at: (label at: v)) ifTrue: [ 
+				label at: v put: (label at: (ancestor at: v))
+			].
+			ancestor at: v put: (ancestor at: (ancestor at: v))
 		 ]
 	].
-	^ dominatorsDict
+
+	link := [ :v :w |
+		ancestor at: w put: v
+	].
+	eval := [ :v |
+	        (ancestor includesKey: v)
+		        ifTrue: [
+			        compress value: v.
+			        label at: v ]
+		        ifFalse: [ v ] ].
+
+	dfsOrder size to: 2 by: -1 do: [ :i |
+		| w |
+		w := vertex at: i.
+
+		(self predecessors: w) do: [ :v |
+			| u |
+			u := eval value: v.
+			((semi at: u) < (semi at: w)) ifTrue: [ 
+				semi at: w put: (semi at: u).
+			]
+		].
+
+		(bucket at: (vertex at: (semi at: w))) addLast: w.
+		link value: (parent at: w) value: w.
+	
+		(bucket at: (parent at: w) ifAbsent: [ {  } ]) copy
+			do: [ :v |
+				| u |
+				(bucket at: (parent at: w)) remove: v.
+				u := eval value: v.
+				idom at: v put: ((semi at: u) < (semi at: v)
+						 ifTrue: [ u ]
+						 ifFalse: [ parent at: w ]) ] ].
+				
+			
+	
+	2 to: dfsOrder size do: [ :i |
+		| w |
+		w := vertex at: i.
+		(idom at: w) ~= (vertex at: (semi at: w)) ifTrue: [
+			idom at: w put: (idom at: (idom at: w)) ] ].
+	idom at: rootMethod put: nil.
+	^ idom
 ]
 
 { #category : 'as yet unclassified' }
@@ -556,13 +634,37 @@ JavaCallGraphModel >> degreeOf: aMethod [
 	^ neighbors size
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'domination' }
+JavaCallGraphModel >> dfs: startNode [
+
+	visited := Set new.
+	dfsOrder := OrderedCollection new.
+	semi := Dictionary new.
+	parent := Dictionary new.
+	vertex := Dictionary new.
+	self dfs: startNode depth: 0
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> dfs: node depth: depth [
+
+	(visited includes: node) ifTrue: [ ^ self ].
+	visited add: node.
+
+	dfsOrder addLast: node.
+	(callGraph at: node ifAbsent: [ {  } ]) do: [ :successor |
+		(visited includes: successor) ifFalse: [
+			parent at: successor put: node.
+			self dfs: successor depth: depth + 1 ] ]
+]
+
+{ #category : 'domination' }
 JavaCallGraphModel >> dominatedMethodsFrom: method [
 
 	^ self subgraphOf: method in: dtreeDict
 ]
 
-{ #category : 'as yet unclassified' }
+{ #category : 'domination' }
 JavaCallGraphModel >> dominatedMethodsFromMethods: methodCollection [
 
 	| dm |
@@ -572,13 +674,23 @@ JavaCallGraphModel >> dominatedMethodsFromMethods: methodCollection [
 	^ dm
 ]
 
-{ #category : 'accessing' }
+{ #category : 'domination' }
+JavaCallGraphModel >> dominatedMethodsFromMethods: methodCollection withoutMethods: removedMethods [
+
+	| dm |
+	dm := Set new.
+	methodCollection do: [ :method |
+		dm addAll: (self subgraphOf: method in: dtreeDict) ].
+	^ dm
+]
+
+{ #category : 'domination' }
 JavaCallGraphModel >> dominatorTree [
 
 	^ dominatorTree
 ]
 
-{ #category : 'accessing' }
+{ #category : 'domination' }
 JavaCallGraphModel >> dominatorsDict [
 
 	^ dominatorsDict
@@ -701,7 +813,7 @@ JavaCallGraphModel >> findFamixType: aFASTExpression from: aFamixJavaMethod [
 		'Could not handle: ' , aFASTExpression class asString
 ]
 
-{ #category : 'private utils' }
+{ #category : 'util' }
 JavaCallGraphModel >> findFamixVariable: aFASTNode from: aFamixJavaMethod [
 
 	(aFASTNode class = FASTJavaClassProperty and: [ aFASTNode type name first isLowercase   ])ifTrue: [
@@ -736,7 +848,18 @@ JavaCallGraphModel >> findFamixVariable: aFASTNode from: aFamixJavaMethod [
 JavaCallGraphModel >> initialize [
 
 	classes := Set new.
-	methods := Set new
+	methods := Set new.
+	methodsToIgnore := Set new
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> initializeRootMethod [
+
+	rootMethod ifNil: [
+		rootMethod := FamixJavaMethod named: 'rootMethod'.
+		rootMethod parentType: (FamixJavaClass named: 'rootClass').
+		self methods add: rootMethod.
+		self callGraph at: rootMethod put: entryMethods ]
 ]
 
 { #category : 'initialization' }
@@ -781,6 +904,18 @@ JavaCallGraphModel >> methodsInCallGraphFrom: method [
 	^ self subgraphOf: method in: self callGraph
 ]
 
+{ #category : 'accessing' }
+JavaCallGraphModel >> methodsToIgnore [
+
+	^ methodsToIgnore
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> methodsToIgnore: anObject [
+
+	methodsToIgnore := anObject
+]
+
 { #category : 'util' }
 JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 	"Looks for the number of parameters of a stub method"
@@ -802,11 +937,29 @@ JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 { #category : 'as yet unclassified' }
 JavaCallGraphModel >> predecessors: method [
 
-	| preds |
-	preds := Set new.
-	self callGraph associationsDo: [ :assoc |
-		(assoc value includes: method) ifTrue: [ preds add: assoc key ] ].
-	^ preds
+	^ self predecessorsDict at: method ifAbsent: [ {  } ]
+	
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> predecessorsDict [
+
+	^ predecessorsDict ifNil: [
+		  predecessorsDict := Dictionary new.
+
+		  self callGraph associationsDo: [ :assoc |
+			  assoc value do: [ :method |
+				  predecessorsDict
+					  at: method
+					  ifPresent: [ :c | c add: assoc key ]
+					  ifAbsentPut: [ Set with: assoc key ] ] ].
+		  predecessorsDict ]
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> predecessorsDict: anObject [
+
+	predecessorsDict := anObject
 ]
 
 { #category : 'util' }

@@ -4,15 +4,17 @@ Extension { #name : 'Set' }
 Set class >> intersectSets: aCollectionOfSets [
 
 	| intersection baseSet |
-	intersection := Set new.
-	baseSet := aCollectionOfSets anyOne.
+	baseSet := aCollectionOfSets detectMin: [ :s | s size ].
+	intersection := baseSet copy.
 
 	baseSet do: [ :element |
-		| shouldAdd |
-		shouldAdd := true.
+		| shouldRemove |
+		shouldRemove := false.
+
 		aCollectionOfSets do: [ :set |
-			(set includes: element) ifFalse: [ shouldAdd := false ] ].
-		shouldAdd ifTrue: [ intersection add: element ] ].
+			(set includes: element) ifFalse: [ shouldRemove := true ] ].
+		
+		shouldRemove ifTrue: [ intersection remove: element ] ].
 
 	^ intersection
 ]

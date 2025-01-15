@@ -111,7 +111,7 @@ JavaCallGraphModelTest >> testCHACatchPolymorphicMethods [
 
 	| cgm callGraph |
 	cgm := JavaCallGraphModel new
-		       entryMethod: mainC;
+		       entryMethods: {mainC};
 		       yourself.
 	callGraph := cgm cha.
 
@@ -129,7 +129,7 @@ JavaCallGraphModelTest >> testCHACatchPolymorphicMethodsOnImplementationMethodIn
 
 	| cgm callGraph |
 	cgm := JavaCallGraphModel new
-		       entryMethod: mainC;
+		       entryMethods: {mainC};
 		       yourself.
 	callGraph := cgm cha.
 	self assert: (callGraph at: mC) size equals: 2.
