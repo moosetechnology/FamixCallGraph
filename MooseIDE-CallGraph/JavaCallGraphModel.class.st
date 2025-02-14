@@ -22,7 +22,9 @@ Class {
 		'parent',
 		'vertex',
 		'semi',
-		'idom'
+		'idom',
+		'ancestor',
+		'label'
 	],
 	#category : 'MooseIDE-CallGraph-Algo',
 	#package : 'MooseIDE-CallGraph',
@@ -468,31 +470,57 @@ JavaCallGraphModel >> cha [
 ]
 
 { #category : 'domination' }
+JavaCallGraphModel >> compress: v [
+
+	(ancestor includesKey: (ancestor at: v)) ifFalse: [ ^ self ].
+	self compress: (ancestor at: v).
+
+	(semi at: (label at: (ancestor at: v))) < (semi at: (label at: v))
+		ifTrue: [ label at: v put: (label at: (ancestor at: v)) ].
+	ancestor at: v put: (ancestor at: (ancestor at: v))
+]
+
+{ #category : 'transofrming' }
+JavaCallGraphModel >> compressCallGraphWith: aCollection [
+
+	| compressedCallGraph |
+	compressedCallGraph := Dictionary new.
+
+	aCollection do: [ :assoc |
+		| name meths vm |
+		name := assoc key.
+		meths := assoc value.
+		vm := FamixJavaMethod named: name.
+		vm parentType: (FamixJavaClass named: 'virtualClass').
+
+		meths do: [ :m |
+			callGraph at: m ifPresent: [ :c |
+				compressedCallGraph
+					at: vm
+					ifPresent: [ :ai | ai addAll: c ]
+					ifAbsentPut: [ Set withAll: c ] ].
+			callGraph associationsDo: [ :as |
+				| s1 |
+				(as key = m or: [ as key name = 'rootMethod'])ifFalse: 
+				[s1 := compressedCallGraph at: as key ifAbsentPut: [ as value copy ].
+(s1 includes: m) ifTrue: [
+	s1 remove: m.
+	s1 add: vm ]] ] ] ].
+
+	^ compressedCallGraph
+]
+
+{ #category : 'domination' }
 JavaCallGraphModel >> computeDominatorTree [
-
-	dominatorTree := Dictionary new.
-	dominatorsDict associationsDo: [ :assoc | |node dom_set doms|
-		node := assoc key.
-		dom_set := assoc value.
-		
-		dom_set size > 1 ifTrue: [ 
-			doms := OrderedCollection withAll: dom_set.
-			doms remove: node.
-			
-			doms sort: [ :a :b | (dominatorsDict at: a) size > (dominatorsDict at: b) size ].
-			
-			dominatorTree at: node put: doms first.
-		
-		]
-		
-	].
-
 	"Transform the dominator tree into an adjacency list"
+
 	dtreeDict := Dictionary new.
-	dominatorTree associationsDo: [ :assoc | 
-		dtreeDict at: assoc value ifPresent: [ :c | c add: assoc key ] ifAbsentPut: [ Set with: assoc key ]
-	].
-	
+	idom associationsDo: [ :assoc |
+		dtreeDict
+			at: assoc value
+			ifPresent: [ :c | c add: assoc key ]
+			ifAbsentPut: [ Set with: assoc key ] ].
+
 	^ dtreeDict
 ]
 
@@ -529,19 +557,17 @@ JavaCallGraphModel >> computeDominators [
 { #category : 'domination' }
 JavaCallGraphModel >> computeLTDominators [
 
-	| bucket ancestor label eval compress link size child |
+	| bucket link |
 	self initializeRootMethod.
+	predecessorsDict := Dictionary new.
 	self dfs: rootMethod.
-
+	
 	semi := Dictionary new.
 	bucket := Dictionary new.
 	label := Dictionary new.
 	
-	size := Dictionary new.
-	child := Dictionary new.
 	
 	dfsOrder withIndexDo: [ :m :i |
-		size at: m put: 1.
 		semi at: m put: i.
 		vertex at: i put: m.
 		bucket at: m put: OrderedCollection new.
@@ -550,26 +576,9 @@ JavaCallGraphModel >> computeLTDominators [
 	ancestor := Dictionary new.
 	idom := Dictionary new.
 
-	compress := [ :v | 
-		(ancestor includesKey: (ancestor at: v)) ifTrue: [ 
-			compress value:(ancestor at: v).
-			
-			(semi at: (label at:(ancestor at: v))) < (semi at: (label at: v)) ifTrue: [ 
-				label at: v put: (label at: (ancestor at: v))
-			].
-			ancestor at: v put: (ancestor at: (ancestor at: v))
-		 ]
-	].
-
 	link := [ :v :w |
 		ancestor at: w put: v
 	].
-	eval := [ :v |
-	        (ancestor includesKey: v)
-		        ifTrue: [
-			        compress value: v.
-			        label at: v ]
-		        ifFalse: [ v ] ].
 
 	dfsOrder size to: 2 by: -1 do: [ :i |
 		| w |
@@ -577,7 +586,8 @@ JavaCallGraphModel >> computeLTDominators [
 
 		(self predecessors: w) do: [ :v |
 			| u |
-			u := eval value: v.
+			u := self eval: v.
+			methodsToIgnore includes: v. 
 			((semi at: u) < (semi at: w)) ifTrue: [ 
 				semi at: w put: (semi at: u).
 			]
@@ -590,7 +600,7 @@ JavaCallGraphModel >> computeLTDominators [
 			do: [ :v |
 				| u |
 				(bucket at: (parent at: w)) remove: v.
-				u := eval value: v.
+				u := self eval: v.
 				idom at: v put: ((semi at: u) < (semi at: v)
 						 ifTrue: [ u ]
 						 ifFalse: [ parent at: w ]) ] ].
@@ -653,9 +663,14 @@ JavaCallGraphModel >> dfs: node depth: depth [
 
 	dfsOrder addLast: node.
 	(callGraph at: node ifAbsent: [ {  } ]) do: [ :successor |
-		(visited includes: successor) ifFalse: [
-			parent at: successor put: node.
-			self dfs: successor depth: depth + 1 ] ]
+		(methodsToIgnore includes: successor) ifFalse: [
+			(visited includes: successor) ifFalse: [
+				parent at: successor put: node.
+				self dfs: successor depth: depth + 1 ].
+			predecessorsDict
+				at: successor
+				ifPresent: [ :c | c add: node ]
+				ifAbsentPut: [ Set with: node ] ] ]
 ]
 
 { #category : 'domination' }
@@ -697,6 +712,12 @@ JavaCallGraphModel >> dominatorsDict [
 ]
 
 { #category : 'accessing' }
+JavaCallGraphModel >> dtreeDict [
+
+	^ dtreeDict
+]
+
+{ #category : 'accessing' }
 JavaCallGraphModel >> entryMethods [
 
 	^ entryMethods
@@ -728,6 +749,14 @@ JavaCallGraphModel >> entryPointsUsing: method [
 		(assoc value includes: method) ifTrue: [ ep add: assoc key ] ].
 	
 	^ ep
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> eval: v [
+
+	(ancestor includesKey: v) ifFalse: [ ^ v ].
+	self compress: v.
+	^ label at: v
 ]
 
 { #category : 'as yet unclassified' }
@@ -937,8 +966,8 @@ JavaCallGraphModel >> numberOfArguments: aFamixJavaMethod [
 { #category : 'as yet unclassified' }
 JavaCallGraphModel >> predecessors: method [
 
-	^ self predecessorsDict at: method ifAbsent: [ {  } ]
-	
+	^ (self predecessorsDict at: method ifAbsent: [ {  } ]) reject: [ :p |
+		  methodsToIgnore includes: p ]
 ]
 
 { #category : 'as yet unclassified' }
@@ -973,6 +1002,12 @@ JavaCallGraphModel >> receiverType: methodReceiver [
 		^ methodReceiver declaredType ].
 	methodReceiver isType ifTrue: [ ^ methodReceiver ].
 	^ nil
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> rootMethod [
+
+	^ rootMethod
 ]
 
 { #category : 'accessing' }
