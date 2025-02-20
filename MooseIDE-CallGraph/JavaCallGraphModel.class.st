@@ -82,15 +82,6 @@ JavaCallGraphModel >> addLinkFrom: m1 to: m2 [
 		ifAbsentPut: [ Set with: m2 ]
 ]
 
-{ #category : 'as yet unclassified' }
-JavaCallGraphModel >> allPathsFrom: start to: end [
-
-	^ self
-		  findAllPathsFrom: start
-		  to: end
-		  currentPath: OrderedCollection new
-]
-
 { #category : 'initialization' }
 JavaCallGraphModel >> buildFASTFor: aMethod [
 
@@ -673,6 +664,27 @@ JavaCallGraphModel >> dfs: node depth: depth [
 				ifAbsentPut: [ Set with: node ] ] ]
 ]
 
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> dfsFrom: currentNode to: endNode path: currentPath paths: paths [
+	"Recursive DFS function to find all paths."
+
+	| newPath |
+	newPath := currentPath copy.
+	newPath add: currentNode.
+
+	currentNode = endNode ifTrue: [
+		paths add: newPath.
+		^ self "End recursion when destination is reached" ].
+
+	(callGraph at: currentNode ifAbsent: [ #(  ) ]) do: [ :neighbor |
+		(newPath includes: neighbor) ifFalse: [ "Avoid cycles"
+			self
+				dfsFrom: neighbor
+				to: endNode
+				path: newPath
+				paths: paths ] ]
+]
+
 { #category : 'domination' }
 JavaCallGraphModel >> dominatedMethodsFrom: method [
 
@@ -801,22 +813,16 @@ JavaCallGraphModel >> exportCallGraphToCSV [
 ]
 
 { #category : 'as yet unclassified' }
-JavaCallGraphModel >> findAllPathsFrom: start to: end currentPath: currentPath [
+JavaCallGraphModel >> findAllPathsFrom: startNode to: endNode [
+	"Find all paths from startNode to endNode using DFS."
 
-	| paths neighbors |
-	currentPath add: start.
-	start = end ifTrue: [ ^ { currentPath copy } ].
-	neighbors := callGraph at: start ifAbsent: [ ^ #(  ) ].
-
+	| paths |
 	paths := OrderedCollection new.
-
-	neighbors do: [ :neighbor |
-		(currentPath includes: neighbor) ifFalse: [ 
-			(self findAllPathsFrom: neighbor to: end currentPath: currentPath)
-				do: [ :p | paths add: p ] ] ].
-
-	currentPath removeLast.
-
+	self
+		dfsFrom: startNode
+		to: endNode
+		path: OrderedCollection new
+		paths: paths.
 	^ paths
 ]
 
