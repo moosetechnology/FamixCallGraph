@@ -1010,6 +1010,20 @@ JavaCallGraphModel >> receiverType: methodReceiver [
 	^ nil
 ]
 
+{ #category : 'domination' }
+JavaCallGraphModel >> reverseCallGraph [
+
+	| rcg |
+	rcg := Dictionary new.
+	callGraph keysAndValuesDo: [ :caller :callees |
+		callees do: [ :callee |
+			rcg
+				at: callee
+				ifPresent: [ :c | c add: caller ]
+				ifAbsentPut: [ Set with: callee ] ] ].
+	^ rcg
+]
+
 { #category : 'accessing' }
 JavaCallGraphModel >> rootMethod [
 
