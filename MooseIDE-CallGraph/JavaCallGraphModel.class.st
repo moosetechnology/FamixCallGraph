@@ -665,6 +665,27 @@ JavaCallGraphModel >> dfs: node depth: depth [
 ]
 
 { #category : 'as yet unclassified' }
+JavaCallGraphModel >> dfsForAPathFrom: currentNode to: endNode path: currentPath paths: paths [
+	"Recursive DFS function to find all paths."
+
+	| newPath |
+	newPath := currentPath copy.
+	newPath add: currentNode.
+	paths isEmpty ifTrue: [
+		currentNode = endNode ifTrue: [
+			paths add: newPath.
+			^ self "End recursion when destination is reached" ].
+
+		(callGraph at: currentNode ifAbsent: [ #(  ) ]) do: [ :neighbor |
+			(newPath includes: neighbor) ifFalse: [ "Avoid cycles"
+				self
+					dfsForAPathFrom: neighbor
+					to: endNode
+					path: newPath
+					paths: paths ] ] ]
+]
+
+{ #category : 'as yet unclassified' }
 JavaCallGraphModel >> dfsFrom: currentNode to: endNode path: currentPath paths: paths [
 	"Recursive DFS function to find all paths."
 
@@ -810,6 +831,20 @@ JavaCallGraphModel >> exportCallGraphToCSV [
 						<< ',';
 						<< (idDict at: callee) asString;
 						<< Character cr ] ] ] ]
+]
+
+{ #category : 'as yet unclassified' }
+JavaCallGraphModel >> findAPathFrom: startNode to: endNode [
+	"Find a path from startNode to endNode using DFS."
+
+	| paths |
+	paths := OrderedCollection new.
+	self
+		dfsForAPathFrom: startNode
+		to: endNode
+		path: OrderedCollection new
+		paths: paths.
+	^ paths
 ]
 
 { #category : 'as yet unclassified' }
