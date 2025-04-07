@@ -237,6 +237,26 @@ JavaCallGraphModel >> callGraphOfMethods: aCollectionOfMethods [
 	^ subCallGraph
 ]
 
+{ #category : 'transofrming' }
+JavaCallGraphModel >> callGraphOfMethods: aCollectionOfMethods in: cg [
+
+	| subCallGraph worklist visitedC |
+	subCallGraph := Dictionary new.
+
+	worklist := OrderedCollection new.
+	worklist addAll: aCollectionOfMethods.
+	visitedC := Set new.
+
+	[ worklist notEmpty ] whileTrue: [
+		| m |
+		m := worklist removeLast.
+		visitedC add: m.
+		cg at: m ifPresent: [ :c |
+			subCallGraph at: m put: c.
+			c do: [ :mm | (visitedC includes: mm) ifFalse: [ worklist add: mm ] ] ] ].
+	^ subCallGraph
+]
+
 { #category : 'initialization' }
 JavaCallGraphModel >> cha [
 
@@ -331,9 +351,9 @@ JavaCallGraphModel >> cha [
 
 
 
-										(receiver notNil and: [ receiver isParameterType ]) ifTrue: [
+										(receiver notNil and: [ receiver isParameterType and: [ receiver typeContainer isStub not ]]) ifTrue: [
 											cs first receiver ifNil: [ "Nothing to do, we have no parameter type bounds information in famix..." ].
-											(cs first receiver notNil and: [ cs first receiver isStructuralEntity ])
+											(cs first receiver notNil and: [ cs first receiver isStructuralEntity and: [ cs first  receiver isStub not ] ])
 												ifTrue: [
 													| cParams |
 													cs first receiver declaredType
@@ -342,7 +362,7 @@ JavaCallGraphModel >> cha [
 															fa := JavaSmaCCProgramNodeImporterVisitor parseCodeMethodString: 'int f(){' , cs first receiver sourceText , ';}'.
 															ds := (fa allWithType: FASTJavaVarDeclStatement) first.
 															ps := ds type arguments collect: [ :a | a typeName name ].
-															cParams := ps collect: [ :p | workMethod mooseModel allClasses detect: [ :c | c name = p ] ] ]
+															cParams := ps collect: [ :p | workMethod mooseModel allClasses detect: [ :c | c name = p ] ifNone: [ nil ] ] thenReject: #isNil ]
 														ifNotNil: [
 															| pe |
 															pe := cs first receiver declaredType isParametricEntity
@@ -385,7 +405,13 @@ JavaCallGraphModel >> cha [
 						rcv isParameterType ifTrue: [ "If parameter type has upper bounds, we can use the class or/and interface(s), for now no bounds in famix :("
 							rcv := method parentType ].
 
-						rcv addMethodOverriding: method in: overridingMethods.
+						
+						
+						rcv ifNil: [ overridingMethods addAll: (method overridingMethods) ] ifNotNil: [ 
+							
+							(rcv isType and: [ rcv isPrimitiveType not ]) ifTrue: [ rcv addMethodOverriding: method in: overridingMethods ] ifFalse: [ overridingMethods addAll: (method overridingMethods) ]
+							
+							 ].
 
 						overridingMethods := overridingMethods reject: [ :m | m isStub or: [ m parentType isAnonymousClass and: [ m parentType typeContainer ~= workMethod ] ] ] ].
 
@@ -995,10 +1021,11 @@ JavaCallGraphModel >> reverseCallGraph [
 	rcg := Dictionary new.
 	callGraph keysAndValuesDo: [ :caller :callees |
 		callees do: [ :callee |
+			rootMethod = caller ifFalse: [
 			rcg
 				at: callee
 				ifPresent: [ :c | c add: caller ]
-				ifAbsentPut: [ Set with: callee ] ] ].
+				ifAbsentPut: [ Set with: caller ] ]] ].
 	^ rcg
 ]
 
