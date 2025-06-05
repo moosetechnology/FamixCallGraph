@@ -24,7 +24,8 @@ Class {
 		'semi',
 		'idom',
 		'ancestor',
-		'label'
+		'label',
+		'rcg'
 	],
 	#category : 'MooseIDE-CallGraph-Algo',
 	#package : 'MooseIDE-CallGraph',
@@ -304,7 +305,7 @@ JavaCallGraphModel >> cha [
 								tName := invocation receiver name.
 								method parentType name = tName
 									ifTrue: [ receiver := method parentType ]
-									ifFalse: [ receiver := method parentType subclassHierarchy detect: [ :c | c name = tName ] ] ]
+									ifFalse: [ receiver := method parentType subclassHierarchy detect: [ :c | c name = tName ] ifNone: [  ] ] ]
 							ifFalse: [
 								invocations := fastInvocations select: [ :i |
 									               i name = method name and: [
@@ -427,6 +428,18 @@ JavaCallGraphModel >> cha [
 				ifEmpty: [ 'No call candidate' traceCr ] ] ].
 	classes := methods collectAsSet: [ :m | m parentType ].
 	^ callGraph
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> classes [
+
+	^ classes
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> classes: anObject [
+
+	classes := anObject
 ]
 
 { #category : 'domination' }
@@ -1001,6 +1014,18 @@ JavaCallGraphModel >> predecessorsDict: anObject [
 	predecessorsDict := anObject
 ]
 
+{ #category : 'accessing' }
+JavaCallGraphModel >> rcg [
+
+	^ rcg
+]
+
+{ #category : 'accessing' }
+JavaCallGraphModel >> rcg: anObject [
+
+	rcg := anObject
+]
+
 { #category : 'util' }
 JavaCallGraphModel >> receiverType: methodReceiver [
 
@@ -1017,7 +1042,6 @@ JavaCallGraphModel >> receiverType: methodReceiver [
 { #category : 'domination' }
 JavaCallGraphModel >> reverseCallGraph [
 
-	| rcg |
 	rcg := Dictionary new.
 	callGraph keysAndValuesDo: [ :caller :callees |
 		callees do: [ :callee |
