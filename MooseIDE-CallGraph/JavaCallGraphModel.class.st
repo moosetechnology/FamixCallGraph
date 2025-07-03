@@ -276,7 +276,7 @@ JavaCallGraphModel >> cha [
 	[ worklist isEmpty ] whileFalse: [
 		| calls workMethod |
 		workMethod := worklist removeLast.
-		calls := workMethod outgoingInvocations.
+		calls := (workMethod outgoingInvocations reject: [:i | {'equals'. 'getId'. 'getCode' } includes: i candidates first name  ]).
 		calls do: [ :call |
 			| overridingMethods method receiver nilReceiverInFAST |
 			nilReceiverInFAST := false.
@@ -415,16 +415,16 @@ JavaCallGraphModel >> cha [
 							 ].
 
 						overridingMethods := overridingMethods reject: [ :m | m isStub or: [ m parentType isAnonymousClass and: [ m parentType typeContainer ~= workMethod ] ] ] ].
-
+					
 					method isStub
 						ifTrue: [ stubMethods add: call ]
 						ifFalse: [ overridingMethods add: method ].
-
+				overridingMethods size < 20 ifTrue: [
 					overridingMethods do: [ :oMeth |
 						self addLinkFrom: workMethod to: oMeth.
 						((callGraph includesKey: oMeth) or: [ visited includesKey: oMeth ]) ifFalse: [
 							worklist add: oMeth.
-							visited at: oMeth put: true ] ] ]
+							visited at: oMeth put: true ] ]] ]
 				ifEmpty: [ 'No call candidate' traceCr ] ] ].
 	classes := methods collectAsSet: [ :m | m parentType ].
 	^ callGraph
@@ -538,8 +538,67 @@ JavaCallGraphModel >> computeLTDominators [
 	semi := Dictionary new.
 	bucket := Dictionary new.
 	label := Dictionary new.
+
+	dfsOrder withIndexDo: [ :m :i |
+		semi at: m put: i.
+		vertex at: i put: m.
+		bucket at: m put: OrderedCollection new.
+		label at: m put: m ].
+
+	ancestor := Dictionary new.
+	idom := Dictionary new.
+
+	link := [ :v :w |
+		ancestor at: w put: v
+	].
+
+	dfsOrder size to: 2 by: -1 do: [ :i |
+		| w |
+		w := vertex at: i.
+
+		(self predecessors: w) do: [ :v |
+			| u |
+			u := self eval: v.
+			methodsToIgnore includes: v. 
+			((semi at: u) < (semi at: w)) ifTrue: [ 
+				semi at: w put: (semi at: u).
+			]
+		].
+
+		(bucket at: (vertex at: (semi at: w))) addLast: w.
+		link value: (parent at: w) value: w.
 	
+		(bucket at: (parent at: w) ifAbsent: [ {  } ]) copy
+			do: [ :v |
+				| u |
+				(bucket at: (parent at: w)) remove: v.
+				u := self eval: v.
+				idom at: v put: ((semi at: u) < (semi at: v)
+						 ifTrue: [ u ]
+						 ifFalse: [ parent at: w ]) ] ].
+				
+			
 	
+	2 to: dfsOrder size do: [ :i |
+		| w |
+		w := vertex at: i.
+		(idom at: w) ~= (vertex at: (semi at: w)) ifTrue: [
+			idom at: w put: (idom at: (idom at: w)) ] ].
+	idom at: rootMethod put: nil.
+	^ idom
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> computeLTDominatorsIn: aCallGraph [
+
+	| bucket link |
+	predecessorsDict := Dictionary new.
+	self dfs: rootMethod in: aCallGraph.
+	
+	semi := Dictionary new.
+	bucket := Dictionary new.
+	label := Dictionary new.
+
 	dfsOrder withIndexDo: [ :m :i |
 		semi at: m put: i.
 		vertex at: i put: m.
@@ -607,6 +666,30 @@ JavaCallGraphModel >> computeModules [
 	]
 ]
 
+{ #category : 'domination' }
+JavaCallGraphModel >> copyCallGraphMergeMethods: mergeMethods [
+
+	| mergeMethod mergedCallGraph |
+	mergeMethod := FamixJavaMethod named: 'mergeMethod'.
+	mergeMethod parentType: (FamixJavaClass named: 'mergeClass').
+	mergedCallGraph := Dictionary new.
+	mergedCallGraph at: mergeMethod put: Set new.
+	callGraph associationsDo: [ :assoc |
+		(mergeMethods includes: assoc key)
+			ifTrue: [ (mergedCallGraph at: mergeMethod) addAll: assoc value ]
+			ifFalse: [
+				(mergeMethods anySatisfy: [ :m | assoc value includes: m ])
+					ifTrue: [
+						mergedCallGraph
+							at: assoc key
+							put: ((assoc value reject: [ :n | mergeMethods includes: n ])
+									 add: mergeMethod;
+									 yourself) ]
+					ifFalse: [ mergedCallGraph at: assoc key put: assoc value copy ] ] ].
+
+	^ mergedCallGraph
+]
+
 { #category : 'as yet unclassified' }
 JavaCallGraphModel >> degreeOf: aMethod [
 
@@ -644,6 +727,35 @@ JavaCallGraphModel >> dfs: node depth: depth [
 				at: successor
 				ifPresent: [ :c | c add: node ]
 				ifAbsentPut: [ Set with: node ] ] ]
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> dfs: node depth: depth in: aCallGraph [
+
+	(visited includes: node) ifTrue: [ ^ self ].
+	visited add: node.
+
+	dfsOrder addLast: node.
+	(aCallGraph at: node ifAbsent: [ {  } ]) do: [ :successor |
+		(methodsToIgnore includes: successor) ifFalse: [
+			(visited includes: successor) ifFalse: [
+				parent at: successor put: node.
+				self dfs: successor depth: depth + 1 in: aCallGraph ].
+			predecessorsDict
+				at: successor
+				ifPresent: [ :c | c add: node ]
+				ifAbsentPut: [ Set with: node ] ] ]
+]
+
+{ #category : 'domination' }
+JavaCallGraphModel >> dfs: startNode in: aCallGraph [
+
+	visited := Set new.
+	dfsOrder := OrderedCollection new.
+	semi := Dictionary new.
+	parent := Dictionary new.
+	vertex := Dictionary new.
+	self dfs: startNode depth: 0 in: aCallGraph
 ]
 
 { #category : 'as yet unclassified' }
@@ -697,11 +809,12 @@ JavaCallGraphModel >> dominatedMethodsFrom: method [
 { #category : 'domination' }
 JavaCallGraphModel >> dominatedMethodsFromMethods: methodCollection [
 
-	| dm |
-	dm := Set new.
-	methodCollection do: [ :method |
-		dm addAll: (self subgraphOf: method in: dtreeDict) ].
-	^ dm
+	| aCallGraph mergeMethod |
+	aCallGraph := self copyCallGraphMergeMethods: methodCollection.
+	mergeMethod := aCallGraph keys detect: [ :m | m name = 'mergeMethod' ].
+	self computeLTDominatorsIn: aCallGraph.
+	self computeDominatorTree.
+	^ self dominatedMethodsFrom: mergeMethod
 ]
 
 { #category : 'domination' }
